@@ -57,6 +57,7 @@ import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { EMPTY } from "@/lib/format";
+import { FromPortalBadge, PortalLockedHint, portalLocked } from "@/components/from-portal-badge";
 import { Link } from "@tanstack/react-router";
 
 export default function ClassesListPage() {
@@ -232,7 +233,10 @@ export default function ClassesListPage() {
                   </kbd>
                 </TableCell>
                 <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
-                  {c.name}
+                  <div className="flex items-center gap-2">
+                    {c.name}
+                    <FromPortalBadge record={c} />
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="font-mono tabular-nums">
@@ -290,14 +294,16 @@ export default function ClassesListPage() {
                       >
                         Edit
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        onClick={() => onDelete(c)}
-                        disabled={remove.isPending}
-                      >
-                        Delete
-                      </Button>
+                      {!c.from_portal && (
+                        <Button
+                          size="xs"
+                          variant="destructive"
+                          onClick={() => onDelete(c)}
+                          disabled={remove.isPending}
+                        >
+                          Delete
+                        </Button>
+                      )}
                     </RowActions>
                   </TableCell>
                 )}
@@ -520,8 +526,13 @@ function ClassFormDialog({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="100 Level" {...field} />
+                    <Input
+                      placeholder="100 Level"
+                      {...field}
+                      disabled={portalLocked(initial, "name")}
+                    />
                   </FormControl>
+                  <PortalLockedHint locked={portalLocked(initial, "name")} />
                   <FormMessage />
                 </FormItem>
               )}

@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { toPaginated, type PaginatedResponse } from "./types";
+import { toPaginated, type PaginatedResponse, type PortalOwned } from "./types";
 
 export interface FacultyDepartmentBrief {
   id: number;
@@ -13,7 +13,7 @@ export interface FacultyDepartmentBrief {
   slug: string;
 }
 
-export interface Faculty {
+export interface Faculty extends PortalOwned {
   id: number;
   name: string;
   slug: string;

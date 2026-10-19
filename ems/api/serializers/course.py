@@ -1,13 +1,14 @@
 from rest_framework import serializers
 
 from ems.api.exceptions import Conflict
+from ems.api.serializers.portal_owned import PortalOwnedMixin
 from ems.models import Class, Course, TimeTable
 
 
-class CourseSerializer(serializers.ModelSerializer):
+class CourseSerializer(PortalOwnedMixin, serializers.ModelSerializer):
     class Meta:
         model = Course
-        fields = ["id", "name", "code", "exam_type"]
+        fields = ["id", "name", "code", "exam_type", "from_portal", "portal_locked"]
         read_only_fields = ["id"]
 
     def validate_name(self, value):

@@ -5,8 +5,9 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { PortalOwned } from "./types";
 
-export interface Department {
+export interface Department extends PortalOwned {
   id: number;
   name: string;
   slug: string;

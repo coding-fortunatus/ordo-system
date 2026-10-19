@@ -35,6 +35,7 @@ import {
   useUpdateDepartment,
 } from "@/api/departments";
 import { useFaculties } from "@/api/faculties";
+import { PortalLockedHint, portalLocked } from "@/components/from-portal-badge";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useState } from "react";
@@ -83,6 +84,8 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
       setTopError(null);
     }
   }, [open, initial, form]);
+
+  const locked = (field: string) => portalLocked(initial, field);
 
   const create = useCreateDepartment();
   const update = useUpdateDepartment(initial?.slug ?? "");
@@ -149,8 +152,10 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                       placeholder="Computer Science"
                       autoComplete="off"
                       {...field}
+                      disabled={locked("name")}
                     />
                   </FormControl>
+                  <PortalLockedHint locked={locked("name")} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -169,8 +174,10 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                       onChange={(e) =>
                         field.onChange(e.target.value.toUpperCase())
                       }
+                      disabled={locked("slug")}
                     />
                   </FormControl>
+                  <PortalLockedHint locked={locked("slug")} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -186,6 +193,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                     onValueChange={(v) =>
                       field.onChange(v === NO_FACULTY ? null : Number(v))
                     }
+                    disabled={locked("faculty")}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -201,6 +209,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <PortalLockedHint locked={locked("faculty")} />
                   <FormMessage />
                 </FormItem>
               )}

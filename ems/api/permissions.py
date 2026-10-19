@@ -87,3 +87,50 @@ class UploadsUnlocked(permissions.BasePermission):
         if settings_row and settings_row.has_timetable:
             return False
         return True
+
+
+
+class NotPortalManaged(permissions.BasePermission):
+    """403 ``portal_managed`` for writes the school portal owns (spec 0005,
+    AC-8): a CSV upload or a create of a data type it syncs, and deleting a
+    record it synced. The view names the type with
+    ``portal_data_type(request)``; None (halls, edits) is never refused here.
+    Edits to portal owned fields are refused by the serializers."""
+
+    def has_permission(self, request, view):
+        if request.method.upper() in ("GET", "HEAD", "OPTIONS"):
+            return True
+        data_type = view.portal_data_type(request)
+        if data_type:
+            from ems.portal_sync import managed
+
+            action = "added by hand" if getattr(view, "action", None) else "uploaded from CSV"
+            managed.assert_type_unsynced(data_type, action=action)
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if getattr(view, "action", None) == "destroy":
+            from ems.portal_sync import managed
+
+            managed.assert_deletable(obj)
+        return True
+
+
+class PortalManagedViewSetMixin:
+    """Applies ``NotPortalManaged`` to an entity viewset. Set ``portal_type``
+    to the data type its records are."""
+
+    portal_type = ""
+
+    # The viewsets pick their permissions per action, so this runs after
+    # whichever they pick rather than joining ``get_permissions``.
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        NotPortalManaged().has_permission(request, self)
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        NotPortalManaged().has_object_permission(request, self, obj)
+
+    def portal_data_type(self, request):
+        return self.portal_type if self.action == "create" else None

@@ -6,13 +6,9 @@ import {
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { SCHOOL_PLAN_KEY } from "./school";
-import type {
-  ClassRef,
-  DepartmentRef,
-  PaginatedResponse,
-} from "./types";
+import type { ClassRef, DepartmentRef, PaginatedResponse, PortalOwned } from "./types";
 
-export interface Student {
+export interface Student extends PortalOwned {
   id: number;
   first_name: string;
   last_name: string;

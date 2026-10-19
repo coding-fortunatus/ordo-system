@@ -24,6 +24,7 @@ import { Route as AppExportsRouteImport } from './routes/_app/exports'
 import { Route as AppFacultiesRouteImport } from './routes/_app/faculties'
 import { Route as AppHallsRouteImport } from './routes/_app/halls'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
+import { Route as AppPortalSyncRouteImport } from './routes/_app/portal-sync'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStudentsRouteImport } from './routes/_app/students'
 import { Route as AppTimetableRouteImport } from './routes/_app/timetable'
@@ -121,6 +122,11 @@ const AppHallsRoute = AppHallsRouteImport.update({
 const AppJobsRoute = AppJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortalSyncRoute = AppPortalSyncRouteImport.update({
+  id: '/portal-sync',
+  path: '/portal-sync',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/faculties': typeof AppFacultiesRoute
   '/halls': typeof AppHallsRoute
   '/jobs': typeof AppJobsRoute
+  '/portal-sync': typeof AppPortalSyncRoute
   '/settings': typeof AppSettingsRoute
   '/students': typeof AppStudentsRoute
   '/timetable': typeof AppTimetableRoute
@@ -313,6 +320,7 @@ export interface FileRoutesByTo {
   '/faculties': typeof AppFacultiesRoute
   '/halls': typeof AppHallsRoute
   '/jobs': typeof AppJobsRoute
+  '/portal-sync': typeof AppPortalSyncRoute
   '/settings': typeof AppSettingsRoute
   '/students': typeof AppStudentsRoute
   '/timetable': typeof AppTimetableRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/_app/faculties': typeof AppFacultiesRoute
   '/_app/halls': typeof AppHallsRoute
   '/_app/jobs': typeof AppJobsRoute
+  '/_app/portal-sync': typeof AppPortalSyncRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/students': typeof AppStudentsRoute
   '/_app/timetable': typeof AppTimetableRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/faculties'
     | '/halls'
     | '/jobs'
+    | '/portal-sync'
     | '/settings'
     | '/students'
     | '/timetable'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
     | '/faculties'
     | '/halls'
     | '/jobs'
+    | '/portal-sync'
     | '/settings'
     | '/students'
     | '/timetable'
@@ -476,6 +487,7 @@ export interface FileRouteTypes {
     | '/_app/faculties'
     | '/_app/halls'
     | '/_app/jobs'
+    | '/_app/portal-sync'
     | '/_app/settings'
     | '/_app/students'
     | '/_app/timetable'
@@ -617,6 +629,13 @@ declare module '@tanstack/react-router' {
       path: '/jobs'
       fullPath: '/jobs'
       preLoaderRoute: typeof AppJobsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portal-sync': {
+      id: '/_app/portal-sync'
+      path: '/portal-sync'
+      fullPath: '/portal-sync'
+      preLoaderRoute: typeof AppPortalSyncRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -808,6 +827,7 @@ interface AppRouteChildren {
   AppFacultiesRoute: typeof AppFacultiesRoute
   AppHallsRoute: typeof AppHallsRoute
   AppJobsRoute: typeof AppJobsRoute
+  AppPortalSyncRoute: typeof AppPortalSyncRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppStudentsRoute: typeof AppStudentsRoute
   AppTimetableRoute: typeof AppTimetableRoute
@@ -831,6 +851,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFacultiesRoute: AppFacultiesRoute,
   AppHallsRoute: AppHallsRoute,
   AppJobsRoute: AppJobsRoute,
+  AppPortalSyncRoute: AppPortalSyncRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppStudentsRoute: AppStudentsRoute,
   AppTimetableRoute: AppTimetableRoute,

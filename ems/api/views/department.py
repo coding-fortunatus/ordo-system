@@ -3,7 +3,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
 from ems.api.pagination import AllowUnpaginatedMixin
-from ems.api.permissions import IsDataOfficer
+from ems.api.permissions import IsDataOfficer, PortalManagedViewSetMixin
 from ems.api.serializers.department import (
     DepartmentSerializer,
     assert_department_deletable,
@@ -11,9 +11,10 @@ from ems.api.serializers.department import (
 from ems.models import Department
 
 
-class DepartmentViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
+class DepartmentViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.ModelViewSet):
     """CRUD for Department. Lookup is by slug to mirror existing URL patterns."""
 
+    portal_type = "departments"
     serializer_class = DepartmentSerializer
     lookup_field = "slug"
     lookup_value_regex = "[-A-Za-z0-9_]+"

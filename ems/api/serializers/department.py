@@ -1,10 +1,11 @@
 from rest_framework import serializers
 
 from ems.api.exceptions import Conflict
+from ems.api.serializers.portal_owned import PortalOwnedMixin
 from ems.models import Class, Department, Faculty, User
 
 
-class DepartmentSerializer(serializers.ModelSerializer):
+class DepartmentSerializer(PortalOwnedMixin, serializers.ModelSerializer):
     class_count = serializers.SerializerMethodField()
     student_count = serializers.SerializerMethodField()
     faculty = serializers.PrimaryKeyRelatedField(
@@ -30,6 +31,8 @@ class DepartmentSerializer(serializers.ModelSerializer):
             "faculty",
             "faculty_name",
             "faculty_slug",
+            "from_portal",
+            "portal_locked",
         ]
         read_only_fields = ["id"]
         extra_kwargs = {

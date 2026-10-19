@@ -176,6 +176,7 @@ _JOB_LABELS = {
     "distribution_all": "distribution",
     "allocation": "seat allocation",
     "allocation_all": "seat allocation",
+    "portal_sync": "portal sync",
 }
 
 

@@ -5,11 +5,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { PaginatedResponse } from "./types";
+import type { PaginatedResponse, PortalOwned } from "./types";
 
 export type ExamType = "PBE" | "CBE";
 
-export interface Course {
+export interface Course extends PortalOwned {
   id: number;
   name: string;
   code: string;

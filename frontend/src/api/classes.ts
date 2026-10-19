@@ -6,11 +6,11 @@ import {
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Course } from "./courses";
-import { toPaginated, type DepartmentRef, type PaginatedResponse } from "./types";
+import { toPaginated, type DepartmentRef, type PaginatedResponse, type PortalOwned } from "./types";
 
 export type ExamPeriod = "" | "AM" | "PM";
 
-export interface Class {
+export interface Class extends PortalOwned {
   id: number;
   name: string | null;
   /** Display copy of the student count, kept in step by the server. Read-only. */

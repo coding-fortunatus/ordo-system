@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FromPortalBadge } from "@/components/from-portal-badge";
 import { PlanUsage } from "@/components/plan-usage";
 import { Input } from "@/components/ui/input";
 import {
@@ -194,7 +195,10 @@ export default function StudentsListPage() {
                     </span>
                   </TableCell>
                   <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                    {formatName(s.first_name, s.last_name)}
+                    <div className="flex items-center gap-2">
+                      {formatName(s.first_name, s.last_name)}
+                      <FromPortalBadge record={s} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-[11px] text-muted-foreground">
@@ -217,26 +221,29 @@ export default function StudentsListPage() {
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="text-right">
-                      <RowActions>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => {
-                            setEditing(s);
-                            setOpen(true);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="destructive"
-                          onClick={() => onDelete(s)}
-                          disabled={remove.isPending}
-                        >
-                          Delete
-                        </Button>
-                      </RowActions>
+                      {/* The portal owns every field of a synced student. */}
+                      {!s.from_portal && (
+                        <RowActions>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => {
+                              setEditing(s);
+                              setOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="destructive"
+                            onClick={() => onDelete(s)}
+                            disabled={remove.isPending}
+                          >
+                            Delete
+                          </Button>
+                        </RowActions>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>

@@ -16,6 +16,9 @@ from .seating_rules import DEFAULT_SEAT_ORDER, RULE_CHOICES, SEAT_ORDERS, STRICT
 class Faculty(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=50, unique=True)
+    # Set while the school's portal owns this record (spec 0005). Null means
+    # Ordo owns it; Postgres treats nulls as distinct, so they never collide.
+    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     class Meta:
         verbose_name_plural = "Faculties"
@@ -35,6 +38,9 @@ class Department(models.Model):
         blank=True,
         related_name="departments",
     )
+    # Set while the school's portal owns this record (spec 0005). Null means
+    # Ordo owns it; Postgres treats nulls as distinct, so they never collide.
+    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     def __str__(self) -> str:
         return str(self.name)
@@ -327,6 +333,9 @@ class Course(models.Model):
     code = models.CharField(max_length=50)
     exam_type = models.CharField(
         max_length=50, default="PBE", choices=COURSE_TYPE)
+    # Set while the school's portal owns this record (spec 0005). Null means
+    # Ordo owns it; Postgres treats nulls as distinct, so they never collide.
+    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     def __str__(self) -> str:
         return f"{self.name} - {self.code}"
@@ -405,6 +414,9 @@ class Class(models.Model):
     # Optional override for the VISA short code. Blank => auto-derived from
     # ``name`` (see ems.directory.derive_visa_code).
     visa_code = models.CharField(max_length=50, blank=True, default="")
+    # Set while the school's portal owns this record (spec 0005). Null means
+    # Ordo owns it; Postgres treats nulls as distinct, so they never collide.
+    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     objects = ClassQuerySet.as_manager()
 
@@ -562,6 +574,9 @@ class Student(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     level = models.ForeignKey(Class, on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, blank=True)
+    # Set while the school's portal owns this record (spec 0005). Null means
+    # Ordo owns it; Postgres treats nulls as distinct, so they never collide.
+    external_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     class Meta:
         indexes = [
@@ -655,6 +670,7 @@ class BackgroundJob(models.Model):
         ('timetable', 'Timetable Generation'),
         ('distribution', 'Distribution Generation'),
         ('allocation', 'Seat Allocation'),
+        ('portal_sync', 'Portal Sync'),
     )
     
     STATUSES = (
@@ -703,6 +719,7 @@ class Notification(models.Model):
     class Kind(models.TextChoices):
         TIMETABLE_PUBLISHED = "timetable_published", "Timetable published"
         TIMETABLE_WITHDRAWN = "timetable_withdrawn", "Timetable withdrawn"
+        PORTAL_SYNC = "portal_sync", "Portal sync"
         GENERAL = "general", "General"
 
     recipient = models.ForeignKey(
@@ -726,3 +743,182 @@ class Notification(models.Model):
 
     def __str__(self) -> str:
         return f"{self.recipient_id}: {self.title}"
+
+
+# Portal sync (spec 0005) ----------------------------------------------------
+
+
+class PortalConnection(models.Model):
+    """The school's own portal Ordo pulls its data from. At most one row.
+
+    ``secret`` is a Fernet token under ``PORTAL_SECRET_KEY`` (see
+    ``ems.portal_sync.secrets``); it is decrypted only inside a fetch and
+    never serialized. ``first_sync_approved_at`` null means the next sync is
+    a preview.
+    """
+
+    class Mode(models.TextChoices):
+        COMBINED = "combined", "One endpoint for everything"
+        PER_TYPE = "per_type", "One endpoint per data type"
+
+    class AuthType(models.TextChoices):
+        API_KEY_HEADER = "api_key_header", "API key header"
+        BEARER = "bearer", "Bearer token"
+
+    mode = models.CharField(max_length=20, choices=Mode.choices)
+    auth_type = models.CharField(max_length=20, choices=AuthType.choices)
+    header_name = models.CharField(max_length=100, blank=True, default="")
+    secret = models.TextField()
+    secret_last4 = models.CharField(max_length=4, blank=True, default="")
+    first_sync_approved_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"Portal connection ({self.mode})"
+
+
+class PortalEndpoint(models.Model):
+    class Kind(models.TextChoices):
+        COMBINED = "combined", "Combined"
+        DEPARTMENTS = "departments", "Departments"
+        CLASSES = "classes", "Classes"
+        COURSES = "courses", "Courses"
+        STUDENTS = "students", "Students"
+
+    class Format(models.TextChoices):
+        JSON = "json", "JSON"
+        CSV = "csv", "CSV"
+
+    class Pagination(models.TextChoices):
+        NONE = "none", "None"
+        PAGE_PARAM = "page_param", "Page number parameter"
+        NEXT_LINK = "next_link", "Next page link"
+
+    connection = models.ForeignKey(
+        PortalConnection, on_delete=models.CASCADE, related_name="endpoints"
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    url = models.URLField(max_length=2000)
+    format = models.CharField(max_length=10, choices=Format.choices, default=Format.JSON)
+    rows_path = models.CharField(max_length=200, blank=True, default="")
+    pagination = models.CharField(
+        max_length=20, choices=Pagination.choices, default=Pagination.NONE
+    )
+    page_param = models.CharField(max_length=50, blank=True, default="")
+    next_path = models.CharField(max_length=200, blank=True, default="")
+    # {ordo_field: their_column}; see ems.portal_sync.fields.
+    field_mapping = models.JSONField(default=dict, blank=True)
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["connection", "kind"], name="one_portal_endpoint_per_kind"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} endpoint"
+
+
+class SyncRun(models.Model):
+    class Trigger(models.TextChoices):
+        MANUAL = "manual", "Sync now"
+        APPROVAL = "approval", "Approval"
+        CONFIRM = "confirm", "Mass delete confirmed"
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "Running"
+        AWAITING_APPROVAL = "awaiting_approval", "Awaiting approval"
+        APPROVED = "approved", "Approved"
+        SUPERSEDED = "superseded", "Superseded"
+        SUCCEEDED = "succeeded", "Succeeded"
+        PARTIAL = "partial", "Partial"
+        HELD = "held", "Held"
+        FAILED = "failed", "Failed"
+
+    # SET_NULL: run history survives a disconnect (AC-17).
+    connection = models.ForeignKey(
+        PortalConnection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="runs",
+    )
+    trigger = models.CharField(max_length=20, choices=Trigger.choices)
+    is_preview = models.BooleanField(default=False)
+    # Data types a confirm lets past the mass delete hold (AC-11).
+    allow_mass_delete = models.JSONField(default=list, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.RUNNING
+    )
+    # Per data type: created, linked, updated, deleted, skipped, held,
+    # ``type_status`` and, on a preview, ``examples`` per bucket.
+    counts = models.JSONField(default=dict, blank=True)
+    # Fetch failure reason: never a secret or row data.
+    error = models.TextField(blank=True, default="")
+    started_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    job = models.OneToOneField(
+        BackgroundJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sync_run",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Sync run {self.pk} ({self.status})"
+
+
+class SyncIssue(models.Model):
+    class DataType(models.TextChoices):
+        FACULTIES = "faculties", "Faculties"
+        DEPARTMENTS = "departments", "Departments"
+        CLASSES = "classes", "Classes"
+        COURSES = "courses", "Courses"
+        STUDENTS = "students", "Students"
+
+    class Kind(models.TextChoices):
+        BAD_ROW = "bad_row", "Bad row"
+        DELETE_HELD_REFERENCED = "delete_held_referenced", "Delete held: in use"
+        MASS_DELETE_HELD = "mass_delete_held", "Mass delete held"
+        PLAN_LIMIT = "plan_limit", "Plan limit"
+        FETCH_ERROR = "fetch_error", "Fetch error"
+
+    class Resolution(models.TextChoices):
+        DELETE = "delete", "Delete"
+        KEEP = "keep", "Keep"
+
+    run = models.ForeignKey(SyncRun, on_delete=models.CASCADE, related_name="issues")
+    data_type = models.CharField(max_length=20, choices=DataType.choices)
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    # Portal ID, matric no, or code only: never the full row.
+    row_ref = models.CharField(max_length=255, blank=True, default="")
+    message = models.TextField(blank=True, default="")
+    target_id = models.IntegerField(null=True, blank=True)
+    resolution = models.CharField(
+        max_length=10, choices=Resolution.choices, blank=True, default=""
+    )
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [models.Index(fields=["run", "kind"])]
+
+    def __str__(self) -> str:
+        return f"{self.kind}: {self.row_ref}"

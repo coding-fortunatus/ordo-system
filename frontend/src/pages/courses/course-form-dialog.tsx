@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PortalLockedHint, portalLocked } from "@/components/from-portal-badge";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
@@ -57,6 +58,7 @@ export function CourseFormDialog({ open, onOpenChange, initial }: Props) {
     resolver: zodResolver(schema),
     defaultValues: { name: "", code: "", exam_type: "PBE" },
   });
+  const locked = (field: string) => portalLocked(initial, field);
   const create = useCreateCourse();
   const update = useUpdateCourse(initial?.id ?? 0);
 
@@ -132,8 +134,10 @@ export function CourseFormDialog({ open, onOpenChange, initial }: Props) {
                       onChange={(e) =>
                         field.onChange(e.target.value.toUpperCase())
                       }
+                      disabled={locked("code")}
                     />
                   </FormControl>
+                  <PortalLockedHint locked={locked("code")} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -149,8 +153,10 @@ export function CourseFormDialog({ open, onOpenChange, initial }: Props) {
                       autoComplete="off"
                       placeholder="Introduction to Computing"
                       {...field}
+                      disabled={locked("name")}
                     />
                   </FormControl>
+                  <PortalLockedHint locked={locked("name")} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -164,6 +170,7 @@ export function CourseFormDialog({ open, onOpenChange, initial }: Props) {
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
+                    disabled={locked("exam_type")}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -175,6 +182,7 @@ export function CourseFormDialog({ open, onOpenChange, initial }: Props) {
                       <SelectItem value="CBE">CBE (computer)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <PortalLockedHint locked={locked("exam_type")} />
                   <FormMessage />
                 </FormItem>
               )}

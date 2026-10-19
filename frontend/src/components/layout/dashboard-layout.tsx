@@ -20,6 +20,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  RefreshCw,
   School,
   ScrollText,
   Settings,
@@ -135,6 +136,13 @@ const NAV_SECTIONS: NavSection[] = [
         requires: canManageFaculties,
       },
       { to: "/uploads", label: "Uploads", icon: Upload, requires: canManageData },
+      {
+        to: "/portal-sync",
+        label: "Portal sync",
+        icon: RefreshCw,
+        requires: canManageData,
+        feature: "portal_sync",
+      },
       { to: "/users", label: "Users", icon: Users, requires: isSuperAdmin },
       { to: "/jobs", label: "Jobs", icon: ListChecks, requires: isSuperAdmin },
       {

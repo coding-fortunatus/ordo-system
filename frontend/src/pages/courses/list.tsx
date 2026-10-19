@@ -32,6 +32,7 @@ import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { formatTitle } from "@/lib/format";
+import { FromPortalBadge } from "@/components/from-portal-badge";
 import { CourseFormDialog } from "./course-form-dialog";
 
 export default function CoursesListPage() {
@@ -166,7 +167,12 @@ export default function CoursesListPage() {
           <TableBody>
             {list.data?.results.map((c) => (
               <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.code}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {c.code}
+                    <FromPortalBadge record={c} />
+                  </div>
+                </TableCell>
                 <TableCell>{formatTitle(c.name)}</TableCell>
                 <TableCell>
                   <Badge variant={c.exam_type === "CBE" ? "default" : "secondary"}>
@@ -186,14 +192,16 @@ export default function CoursesListPage() {
                       >
                         Edit
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        onClick={() => onDelete(c)}
-                        disabled={remove.isPending}
-                      >
-                        Delete
-                      </Button>
+                      {!c.from_portal && (
+                        <Button
+                          size="xs"
+                          variant="destructive"
+                          onClick={() => onDelete(c)}
+                          disabled={remove.isPending}
+                        >
+                          Delete
+                        </Button>
+                      )}
                     </RowActions>
                   </TableCell>
                 )}

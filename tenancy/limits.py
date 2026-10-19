@@ -59,6 +59,7 @@ FEATURE_LABELS = {
     "exports": "Exports",
     "publication": "Timetable publishing",
     "branding": "Custom branding",
+    "portal_sync": "Portal sync",
 }
 
 

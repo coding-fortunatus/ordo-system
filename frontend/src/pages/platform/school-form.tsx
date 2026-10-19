@@ -80,7 +80,7 @@ const schema = z
     max_students_override: optionalCount,
     max_staff_users_override: optionalCount,
     use_plan_features: z.boolean(),
-    features_override: z.array(z.enum(["seat_allocation", "exports", "publication", "branding"])),
+    features_override: z.array(z.enum(["seat_allocation", "exports", "publication", "branding", "portal_sync"])),
     plan_started_on: z.string(),
     renews_on: z.string(),
     contact_name: z.string().trim().max(255),

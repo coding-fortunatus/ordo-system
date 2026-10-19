@@ -2,11 +2,12 @@ from django.db import transaction
 from rest_framework import serializers
 
 from ems.api.exceptions import Conflict
+from ems.api.serializers.portal_owned import PortalOwnedMixin
 from ems.models import Class, SeatArrangement, Student
 from tenancy import limits
 
 
-class StudentSerializer(serializers.ModelSerializer):
+class StudentSerializer(PortalOwnedMixin, serializers.ModelSerializer):
     class_id = serializers.PrimaryKeyRelatedField(
         queryset=Class.objects.all(),
         source="level",
@@ -27,6 +28,8 @@ class StudentSerializer(serializers.ModelSerializer):
             "department",
             "level",
             "class_id",
+            "from_portal",
+            "portal_locked",
         ]
         read_only_fields = ["id", "department", "level"]
 

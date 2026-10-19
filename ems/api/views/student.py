@@ -2,7 +2,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from ems.api.permissions import CanManageDepartmentScoped
+from ems.api.permissions import CanManageDepartmentScoped, PortalManagedViewSetMixin
 from ems.api.serializers.student import (
     StudentSerializer,
     assert_student_deletable,
@@ -10,7 +10,8 @@ from ems.api.serializers.student import (
 from ems.models import Class, Student
 
 
-class StudentViewSet(viewsets.ModelViewSet):
+class StudentViewSet(PortalManagedViewSetMixin, viewsets.ModelViewSet):
+    portal_type = "students"
     serializer_class = StudentSerializer
 
     def get_queryset(self):

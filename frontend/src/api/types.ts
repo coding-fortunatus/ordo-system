@@ -20,6 +20,14 @@ export function toPaginated<T>(data: PaginatedResponse<T> | T[]): PaginatedRespo
   return data;
 }
 
+/** Set on records the school portal syncs (spec 0005, AC-8). */
+export interface PortalOwned {
+  /** Synced from the school's portal: it can't be deleted here. */
+  from_portal: boolean;
+  /** API fields only the portal may change, e.g. `name`, `class_id`. */
+  portal_locked: string[];
+}
+
 export interface DepartmentRef {
   id: number;
   name: string;

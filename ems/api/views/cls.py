@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
 from ems.api.pagination import AllowUnpaginatedMixin
-from ems.api.permissions import CanManageDepartmentScoped
+from ems.api.permissions import CanManageDepartmentScoped, PortalManagedViewSetMixin
 from ems.api.serializers.cls import (
     ClassCourseAssignSerializer,
     ClassSerializer,
@@ -14,9 +14,11 @@ from ems.api.serializers.cls import (
 )
 from ems.api.serializers.course import CourseSerializer
 from ems.models import Class, Course, TimeTable
+from ems.portal_sync import managed
 
 
-class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
+class ClassViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.ModelViewSet):
+    portal_type = "classes"
     serializer_class = ClassSerializer
 
     def get_queryset(self):
@@ -91,6 +93,7 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     )
     def add_course(self, request, pk=None):
         cls = self.get_object()
+        managed.assert_links_editable(cls)
         serializer = ClassCourseAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         course = serializer.resolve_course()
@@ -113,6 +116,7 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
             raise NotFound("This course is not assigned to the class.") from exc
 
         if request.method == "DELETE":
+            managed.assert_links_editable(cls)
             if TimeTable.objects.filter(course=course).exists():
                 raise Conflict(
                     "Cannot remove this course: timetable entries reference it. "

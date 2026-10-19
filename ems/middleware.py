@@ -61,6 +61,7 @@ _RESOURCE_LABELS = {
     "branding": "branding",
     "constraints": "generation constraints",
     "support": "support session",
+    "portal-sync": "portal sync",
 }
 
 _METHOD_VERBS = {
@@ -87,6 +88,15 @@ _EXPORT_LABELS = {
 }
 
 _FILENAME_RE = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", re.IGNORECASE)
+
+
+def set_audit(request, action, *, object_type, object_id="", **metadata):
+    """Name the audit row for this request instead of the path derived
+    description. For a view whose actions the path can't tell apart (a
+    connection change vs a secret change). ``metadata`` must hold no
+    secrets and no row content."""
+    target = getattr(request, "_request", request)
+    target._ordo_audit = (action, object_type, str(object_id or ""), metadata)
 
 
 def _segments(path):
@@ -269,7 +279,11 @@ class AuditLogMiddleware:
         if segments and segments[0] in _UNAUDITED_RESOURCES:
             return
 
-        action, object_type, object_id = _describe(request, segments)
+        metadata = None
+        if named := getattr(request, "_ordo_audit", None):
+            action, object_type, object_id, metadata = named
+        else:
+            action, object_type, object_id = _describe(request, segments)
         self._write(
             user=user,
             email=user.email,
@@ -278,6 +292,7 @@ class AuditLogMiddleware:
             response=response,
             object_type=object_type,
             object_id=object_id,
+            metadata=metadata,
         )
 
     def _write(

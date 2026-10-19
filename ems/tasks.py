@@ -960,3 +960,21 @@ def generate_allocation_all_task(self, job_id, user_id):
         job_failed(job, e)
         job.save()
         raise
+
+
+@shared_task(bind=True)
+def portal_sync_task(self, job_id, run_id):
+    """Fetch the school's portal and apply it (spec 0005). Runs in the
+    school's schema, like every task queued from a school request."""
+    from .portal_sync.runs import execute
+
+    execute(run_id, job_id)
+
+
+@shared_task
+def prune_sync_runs():
+    """Delete portal sync runs older than 90 days in every school (beat,
+    daily)."""
+    from .portal_sync.runs import prune
+
+    prune()

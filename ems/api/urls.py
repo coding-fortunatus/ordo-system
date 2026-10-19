@@ -53,6 +53,19 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
+from ems.api.views.portal_sync import (
+    ConnectionView,
+    EndpointDetailView,
+    EndpointListView,
+    EndpointTestView,
+    FieldsView,
+    IssueResolveView,
+    RunApproveView,
+    RunConfirmMassDeleteView,
+    RunDetailView,
+    RunIssueListView,
+    RunListView,
+)
 from ems.api.views.school import SchoolStatusView, SchoolView
 from ems.api.views.support import SupportEndView, SupportRedeemView
 from ems.api.views.invites import (
@@ -231,6 +244,44 @@ invite_patterns = [
     path("<str:token>/accept/", InviteAcceptView.as_view(), name="api-invite-accept"),
 ]
 
+portal_sync_patterns = [
+    path("connection/", ConnectionView.as_view(), name="api-portal-connection"),
+    path("fields/", FieldsView.as_view(), name="api-portal-fields"),
+    path("endpoints/", EndpointListView.as_view(), name="api-portal-endpoints"),
+    path(
+        "endpoints/<int:pk>/",
+        EndpointDetailView.as_view(),
+        name="api-portal-endpoint",
+    ),
+    path(
+        "endpoints/<int:pk>/test/",
+        EndpointTestView.as_view(),
+        name="api-portal-endpoint-test",
+    ),
+    path("runs/", RunListView.as_view(), name="api-portal-runs"),
+    path("runs/<int:pk>/", RunDetailView.as_view(), name="api-portal-run"),
+    path(
+        "runs/<int:pk>/approve/",
+        RunApproveView.as_view(),
+        name="api-portal-run-approve",
+    ),
+    path(
+        "runs/<int:pk>/issues/",
+        RunIssueListView.as_view(),
+        name="api-portal-run-issues",
+    ),
+    path(
+        "runs/<int:pk>/confirm-mass-delete/",
+        RunConfirmMassDeleteView.as_view(),
+        name="api-portal-run-confirm-mass-delete",
+    ),
+    path(
+        "issues/<int:pk>/resolve/",
+        IssueResolveView.as_view(),
+        name="api-portal-issue-resolve",
+    ),
+]
+
 urlpatterns = [
     path("auth/", include(auth_patterns)),
     path("school/", SchoolView.as_view(), name="api-school"),
@@ -242,6 +293,7 @@ urlpatterns = [
     path("uploads/", include(upload_patterns)),
     path("exports/", include(export_patterns)),
     path("directory/", include(directory_patterns)),
+    path("portal-sync/", include(portal_sync_patterns)),
     path("public/", include("ems.api.public_urls")),
     path("", include(scheduling_patterns)),
     path("", include(router.urls)),

@@ -155,7 +155,7 @@ const planSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   max_students: optionalCount,
   max_staff_users: optionalCount,
-  features: z.array(z.enum(["seat_allocation", "exports", "publication", "branding"])),
+  features: z.array(z.enum(["seat_allocation", "exports", "publication", "branding", "portal_sync"])),
   is_active: z.boolean(),
 });
 

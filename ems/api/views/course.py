@@ -2,7 +2,7 @@ from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
-from ems.api.permissions import IsDataOfficer
+from ems.api.permissions import IsDataOfficer, PortalManagedViewSetMixin
 from ems.api.serializers.course import (
     CourseSerializer,
     assert_course_deletable,
@@ -10,7 +10,8 @@ from ems.api.serializers.course import (
 from ems.models import Course
 
 
-class CourseViewSet(viewsets.ModelViewSet):
+class CourseViewSet(PortalManagedViewSetMixin, viewsets.ModelViewSet):
+    portal_type = "courses"
     serializer_class = CourseSerializer
 
     def get_queryset(self):

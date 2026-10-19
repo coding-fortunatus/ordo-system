@@ -115,6 +115,7 @@ export default function JobsListPage() {
                 <SelectItem value="timetable">Timetable</SelectItem>
                 <SelectItem value="distribution">Distribution</SelectItem>
                 <SelectItem value="allocation">Allocation</SelectItem>
+                <SelectItem value="portal_sync">Portal sync</SelectItem>
               </SelectContent>
             </Select>
           </>

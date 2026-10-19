@@ -2,13 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 /** Optional features a plan switches on (tenancy.features.KEYS). */
-export type FeatureKey = "seat_allocation" | "exports" | "publication" | "branding";
+export type FeatureKey =
+  | "seat_allocation"
+  | "exports"
+  | "publication"
+  | "branding"
+  | "portal_sync";
 
 export const FEATURE_LABELS: Record<FeatureKey, string> = {
   seat_allocation: "Seat allocation",
   exports: "Exports",
   publication: "Timetable publication",
   branding: "Branding",
+  portal_sync: "Portal sync",
 };
 
 /** This school's effective plan: GET /api/school/. Null limits are unlimited. */

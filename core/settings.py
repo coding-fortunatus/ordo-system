@@ -41,6 +41,14 @@ PLATFORM_ALERT_EMAILS = env.list("PLATFORM_ALERT_EMAILS", default=[])
 # `manage.py create_platform_admin --reset-2fa --email <e>`.
 PLATFORM_TOTP_KEY = env("PLATFORM_TOTP_KEY", default="")
 
+# Fernet key encrypting schools' portal sync secrets (spec 0005). Separate
+# from PLATFORM_TOTP_KEY so rotating one doesn't break the other. Generate it
+# the same way.
+PORTAL_SECRET_KEY = env("PORTAL_SECRET_KEY", default="")
+# A sync holds a data type when it would delete more than this percentage of
+# that type's portal owned records (spec 0005, AC-11).
+PORTAL_SYNC_MASS_DELETE_PCT = env.int("PORTAL_SYNC_MASS_DELETE_PCT", default=10)
+
 # The leading dot admits every subdomain. Any other host gets Django's 400,
 # which says nothing about which schools exist. USE_X_FORWARDED_HOST stays
 # off: the school always comes from the real Host header.

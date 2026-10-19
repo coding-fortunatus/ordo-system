@@ -28,6 +28,7 @@ import {
   useUpdateFaculty,
 } from "@/api/faculties";
 import { useDepartments } from "@/api/departments";
+import { PortalLockedHint, portalLocked } from "@/components/from-portal-badge";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
@@ -172,8 +173,10 @@ export function FacultyFormDialog({ open, onOpenChange, initial }: Props) {
                       onChange={(e) =>
                         field.onChange(e.target.value.toUpperCase())
                       }
+                      disabled={portalLocked(initial, "slug")}
                     />
                   </FormControl>
+                  <PortalLockedHint locked={portalLocked(initial, "slug")} />
                   <FormMessage />
                 </FormItem>
               )}
@@ -198,15 +201,19 @@ export function FacultyFormDialog({ open, onOpenChange, initial }: Props) {
                       ) : (
                         selectableDepartments.map((d) => {
                           const checked = field.value.includes(d.id);
+                          // The portal sets this department's faculty.
+                          const fixed = portalLocked(d, "faculty");
                           return (
                             <label
                               key={d.id}
-                              className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-[color:var(--muted)]/50"
+                              className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-[color:var(--muted)]/50 has-disabled:cursor-not-allowed has-disabled:opacity-60"
+                              title={fixed ? "This department's faculty comes from your school portal." : undefined}
                             >
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-[color:var(--primary)]"
                                 checked={checked}
+                                disabled={fixed}
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     field.onChange([...field.value, d.id]);

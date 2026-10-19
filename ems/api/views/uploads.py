@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems import upload_handlers
-from ems.api.permissions import IsDataOfficer, UploadsUnlocked
+from ems.api.permissions import IsDataOfficer, NotPortalManaged, UploadsUnlocked
 from ems.models import Class, Department
 
 
@@ -24,10 +24,15 @@ def _require_dept_access(request, department: Department) -> None:
 
 
 class _BaseUploadView(APIView):
-    permission_classes = [IsDataOfficer, UploadsUnlocked]
+    permission_classes = [IsDataOfficer, UploadsUnlocked, NotPortalManaged]
     parser_classes = [MultiPartParser, FormParser]
 
     handler_attr: str = ""
+    # The data type the upload writes; the portal may own it (spec 0005).
+    data_type: str | None = None
+
+    def portal_data_type(self, request):
+        return self.data_type
 
     def _file(self, request):
         f = request.FILES.get("file")
@@ -40,6 +45,8 @@ class _BaseUploadView(APIView):
 
 
 class DepartmentUploadView(_BaseUploadView):
+    data_type = "departments"
+
     def post(self, request):
         f = self._file(request)
         if isinstance(f, Response):
@@ -64,6 +71,8 @@ class HallUploadView(_BaseUploadView):
 
 
 class CourseUploadView(_BaseUploadView):
+    data_type = "courses"
+
     def post(self, request):
         f = self._file(request)
         if isinstance(f, Response):
@@ -76,7 +85,8 @@ class CourseUploadView(_BaseUploadView):
 
 
 class ClassesForDepartmentUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "classes"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, dept_slug):
         department = get_object_or_404(Department, slug=dept_slug)
@@ -92,7 +102,8 @@ class ClassesForDepartmentUploadView(_BaseUploadView):
 
 
 class ClassCoursesUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "courses"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
@@ -108,7 +119,8 @@ class ClassCoursesUploadView(_BaseUploadView):
 
 
 class ClassStudentsUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "students"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
@@ -125,6 +137,10 @@ class ClassStudentsUploadView(_BaseUploadView):
 
 class BulkUploadView(_BaseUploadView):
     """POST /api/uploads/bulk/ with `upload_type` field selecting the dispatcher."""
+
+    def portal_data_type(self, request):
+        upload_type = request.data.get("upload_type", "").strip()
+        return upload_type if upload_type in ("departments", "courses") else None
 
     def post(self, request):
         f = self._file(request)

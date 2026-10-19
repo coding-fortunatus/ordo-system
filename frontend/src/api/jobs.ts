@@ -9,7 +9,7 @@ import { api, getToken, wsUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { PaginatedResponse } from "./types";
 
-export type JobType = "timetable" | "distribution" | "allocation";
+export type JobType = "timetable" | "distribution" | "allocation" | "portal_sync";
 export type JobStatus = "pending" | "running" | "success" | "failed";
 
 export interface BackgroundJob {

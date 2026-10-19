@@ -3,7 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 
 from ems.api.pagination import AllowUnpaginatedMixin
-from ems.api.permissions import IsFacultyOfficer
+from ems.api.permissions import IsFacultyOfficer, PortalManagedViewSetMixin
 from ems.api.serializers.faculty import (
     FacultySerializer,
     assert_faculty_deletable,
@@ -11,9 +11,10 @@ from ems.api.serializers.faculty import (
 from ems.models import Faculty
 
 
-class FacultyViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
+class FacultyViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.ModelViewSet):
     """CRUD for Faculty. Admin-only. Lookup by slug."""
 
+    portal_type = "faculties"
     serializer_class = FacultySerializer
     lookup_field = "slug"
     lookup_value_regex = "[-A-Za-z0-9_]+"

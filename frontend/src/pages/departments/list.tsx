@@ -25,6 +25,7 @@ import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { PageHeader } from "@/components/layout/page-header";
 import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
+import { FromPortalBadge } from "@/components/from-portal-badge";
 import { DepartmentFormDialog } from "./department-form-dialog";
 
 export default function DepartmentsListPage() {
@@ -143,7 +144,10 @@ export default function DepartmentsListPage() {
                       </kbd>
                     </TableCell>
                     <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
-                      {d.name}
+                      <div className="flex items-center gap-2">
+                        {d.name}
+                        <FromPortalBadge record={d} />
+                      </div>
                     </TableCell>
                     <TableCell>
                       {d.faculty_slug ? (
@@ -180,14 +184,16 @@ export default function DepartmentsListPage() {
                           >
                             Edit
                           </Button>
-                          <Button
-                            size="xs"
-                            variant="destructive"
-                            onClick={() => handleDelete(d)}
-                            disabled={remove.isPending}
-                          >
-                            Delete
-                          </Button>
+                          {!d.from_portal && (
+                            <Button
+                              size="xs"
+                              variant="destructive"
+                              onClick={() => handleDelete(d)}
+                              disabled={remove.isPending}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </RowActions>
                       </TableCell>
                     )}

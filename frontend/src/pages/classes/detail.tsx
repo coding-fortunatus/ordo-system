@@ -17,6 +17,7 @@ import {
 } from "@/api/uploads";
 import { useSystemSettings } from "@/api/system";
 import { FileUploadCard } from "@/components/file-upload-card";
+import { FromPortalBadge, portalLocked } from "@/components/from-portal-badge";
 import { PlanUsage } from "@/components/plan-usage";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +76,8 @@ export default function ClassDetailPage() {
     (!!user?.department && user.department.id === cls.data?.department.id);
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
+  // The portal lists this class's courses, so they change there.
+  const canEditCourses = isAdmin && !portalLocked(cls.data, "courses");
 
   const onRemove = async (courseId: number, code: string) => {
     const ok = await confirm({
@@ -118,6 +121,9 @@ export default function ClassDetailPage() {
               <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
                 {cls.data.name}
               </h1>
+              <div className="mt-2">
+                <FromPortalBadge record={cls.data} />
+              </div>
               <p className="mt-2 text-[14.5px] text-muted-foreground">
                 {cls.data.department.name}
                 <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
@@ -179,7 +185,7 @@ export default function ClassDetailPage() {
                   Courses currently linked to this class.
                 </CardDescription>
               </div>
-              {isAdmin && numericId !== undefined && (
+              {canEditCourses && numericId !== undefined && (
                 <Button onClick={() => setOpen(true)}>
                   <Plus data-icon="inline-start" /> Add course
                 </Button>
@@ -192,7 +198,7 @@ export default function ClassDetailPage() {
                     <TableHead className="w-[140px]">Code</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead className="w-[120px]">Type</TableHead>
-                    {isAdmin && (
+                    {canEditCourses && (
                       <TableHead className="w-[80px] text-right" />
                     )}
                   </TableRow>
@@ -201,7 +207,7 @@ export default function ClassDetailPage() {
                   {cls.data.courses.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={isAdmin ? 4 : 3}
+                        colSpan={canEditCourses ? 4 : 3}
                         className="py-12 text-center font-serif italic text-muted-foreground"
                       >
                         No courses assigned yet.
@@ -236,7 +242,7 @@ export default function ClassDetailPage() {
                             {c.exam_type}
                           </span>
                         </TableCell>
-                        {isAdmin && (
+                        {canEditCourses && (
                           <TableCell className="text-right">
                             <Button
                               variant="ghost"
@@ -342,7 +348,10 @@ function ClassStudentsCard({ classId }: { classId: number }) {
                         </span>
                       </TableCell>
                       <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                        {formatName(s.first_name, s.last_name)}
+                        <div className="flex items-center gap-2">
+                          {formatName(s.first_name, s.last_name)}
+                          <FromPortalBadge record={s} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatEmail(s.email)}

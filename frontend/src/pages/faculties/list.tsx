@@ -25,6 +25,7 @@ import { PaginationFooter } from "@/components/data-table/pagination";
 import { PageHeader } from "@/components/layout/page-header";
 import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { EMPTY } from "@/lib/format";
+import { FromPortalBadge } from "@/components/from-portal-badge";
 import { FacultyFormDialog } from "./faculty-form-dialog";
 
 export default function FacultiesListPage() {
@@ -135,7 +136,10 @@ export default function FacultiesListPage() {
                       </kbd>
                     </TableCell>
                     <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
-                      {f.name}
+                      <div className="flex items-center gap-2">
+                        {f.name}
+                        <FromPortalBadge record={f} />
+                      </div>
                     </TableCell>
                     <TableCell>
                       {f.departments.length === 0 ? (
@@ -171,14 +175,16 @@ export default function FacultiesListPage() {
                         >
                           Edit
                         </Button>
-                        <Button
-                          size="xs"
-                          variant="destructive"
-                          onClick={() => handleDelete(f)}
-                          disabled={remove.isPending}
-                        >
-                          Delete
-                        </Button>
+                        {!f.from_portal && (
+                          <Button
+                            size="xs"
+                            variant="destructive"
+                            onClick={() => handleDelete(f)}
+                            disabled={remove.isPending}
+                          >
+                            Delete
+                          </Button>
+                        )}
                       </RowActions>
                     </TableCell>
                   </TableRow>
