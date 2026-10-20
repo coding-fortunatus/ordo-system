@@ -31,4 +31,5 @@ The documentation reflects the behavior and configuration found in the current r
 | `core/` | Application configuration and runtime setup |
 | `docs/` | Product, marketing, and technical documentation |
 | `testing/` | Exploratory testing resources |
+| `.env.example` | Local development settings. Copy to `.env`. Production uses `deploy/.env.prod.example`. |
 

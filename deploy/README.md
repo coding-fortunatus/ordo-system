@@ -24,30 +24,39 @@ This runbook covers bringing up `deploy/compose.prod.yml` (spec 0003 slice 12), 
    - **A backup token** with *Object Read & Write* on `ordo-backups` only. Put it in `BACKUP_S3_ACCESS_KEY_ID` and `BACKUP_S3_SECRET_ACCESS_KEY`. The export token goes in `EXPORT_S3_*` and never needs this bucket.
    - **2FA on the Cloudflare account.** A Cloudflare admin can remove the bucket lock, so the account is what guards it. Never put an R2 admin credential on the VPS.
 3. **Outside monitor**: create a check at a dead man's switch service such as Healthchecks.io, with a **24 hour period** and a **2 hour grace**, emailing you. Put its ping URL in `BACKUP_HEARTBEAT_URL`. You get an email at once when a backup attempt fails (`/fail`), and when no ping arrives for 26 hours, which also catches the whole VPS being down.
-4. **Secrets** on the VPS, from the repo root:
+4. **Email (Brevo)**. Invites and platform alerts go out over Brevo's SMTP relay.
+   - In Brevo, under **Senders, Domains & Dedicated IPs**, **Domains**, add `ordo.app`. Add the records it lists (the `brevo-code` TXT, the DKIM records, and a DMARC TXT if you have none) in Cloudflare DNS, as **DNS only**. Then click **Authenticate**. Mail from an unauthenticated domain gets rejected or lands in spam.
+   - Under **Senders**, add `no-reply@ordo.app`, or whatever `DEFAULT_FROM_EMAIL` uses.
+   - Under **SMTP & API**, **SMTP**, generate an SMTP key. Put the **Login** shown there in `EMAIL_HOST_USER` and the key in `EMAIL_HOST_PASSWORD`. A new Brevo account may have to ask support to turn on transactional sending before the relay accepts mail.
+   - Once the stack is up (step 6), send a test:
+     ```sh
+     docker compose -f deploy/compose.prod.yml run --rm api python manage.py sendtestemail you@example.com
+     ```
+     Then check **Transactional**, **Logs** in Brevo if it doesn't arrive. A send that fails in the app is retried 3 times by the worker, then logged as `Giving up emailing ...` (`docker compose -f deploy/compose.prod.yml logs worker`).
+5. **Secrets** on the VPS, from the repo root:
    ```sh
    cp deploy/.env.example deploy/.env            # Traefik and Postgres
    cp deploy/.env.prod.example deploy/.env.prod  # Django services
    chmod 600 deploy/.env deploy/.env.prod
    ```
    Fill both. The password in `DATABASE_URL` must match `POSTGRES_PASSWORD`. Then save a copy of both files in your password manager, off the VPS (see *What recovery needs* below).
-5. **Start it**:
+6. **Start it**:
    ```sh
    docker compose -f deploy/compose.prod.yml up -d --build
    docker compose -f deploy/compose.prod.yml ps        # all healthy, migrate exited 0
    ```
-6. **Check the certificate** (AC-10). It should list `*.ordo.app`:
+7. **Check the certificate** (AC-10). It should list `*.ordo.app`:
    ```sh
    openssl s_client -connect x.ordo.app:443 -servername x.ordo.app </dev/null 2>/dev/null \
      | openssl x509 -noout -subject -ext subjectAltName
    ```
-7. **First Owner**:
+8. **First Owner**:
    ```sh
    docker compose -f deploy/compose.prod.yml run --rm api \
      python manage.py create_platform_admin --email you@ordo.app --name "Your Name"
    ```
    Then sign in at `https://console.ordo.app` (or whatever `PLATFORM_CONSOLE_SUBDOMAIN` is set to) and enrol your authenticator.
-8. **Run the restore drill below before you onboard the first school.** It's the launch blocker.
+9. **Run the restore drill below before you onboard the first school.** It's the launch blocker.
 
 ## Deploying a new release
 
