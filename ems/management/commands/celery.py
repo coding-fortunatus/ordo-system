@@ -1,3 +1,7 @@
+import atexit
+import subprocess
+import sys
+
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import autoreload
@@ -56,8 +60,22 @@ class Command(BaseCommand):
             # worker (spec 0006).
             argv = ['worker', '-l', loglevel, '--concurrency', concurrency,
                     '-Q', 'celery,observability']
-            if mode == 'all':
-                argv.append('-B')
 
         self.stdout.write(self.style.SUCCESS(f"Starting Celery {mode}..."))
-        app.start(argv)
+        if mode == 'all':
+            # Beat as its own process, as in production, not the worker's -B:
+            # where processes spawn (macOS) Celery 5.3 pickles the embedded
+            # beat with its arguments out of order and it dies with
+            # "'CeleryApp' object is not callable".
+            beat = subprocess.Popen([
+                sys.executable, '-m', 'celery', '-A', 'core',
+                'beat', '-l', loglevel,
+            ])
+            # The reloader exits the process on a change; never orphan beat.
+            atexit.register(beat.terminate)
+            try:
+                app.start(argv)
+            finally:
+                beat.terminate()
+        else:
+            app.start(argv)
