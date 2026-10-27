@@ -1,8 +1,11 @@
 """Observability in the console (``/api/platform/``, platform staff only), and
-the browser error ingest endpoint on every host (spec 0004, API surface).
+the browser error and Web Vitals ingest endpoints on every host (spec 0004,
+API surface; spec 0006, child 0005).
 """
 import json
+from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -17,7 +20,7 @@ from rest_framework.response import Response
 from ems.api.pagination import DefaultPagination
 from tenancy import audit
 from tenancy.models import ErrorEvent, ErrorGroup, SchoolHealth
-from tenancy.observability import capture, counters, health
+from tenancy.observability import capture, context, counters, health, metrics
 from tenancy.views import PlatformView
 
 COUNT_FIELDS = ("server_errors", "client_errors", "ws_errors", "js_errors", "job_failures", "requests")
@@ -110,9 +113,23 @@ class ErrorGroupDetailSerializer(ErrorGroupSerializer):
 
 
 class ErrorEventSerializer(serializers.ModelSerializer):
+    # Whether the event's trace and logs are still stored (spec 0006): an
+    # error's trace is always kept, until retention removes it.
+    trace_kept = serializers.SerializerMethodField()
+    logs_kept = serializers.SerializerMethodField()
+
     class Meta:
         model = ErrorEvent
-        fields = ["id", "occurred_at", "message", "stack", "context", "release"]
+        fields = ["id", "occurred_at", "message", "stack", "context", "release", "trace_id", "trace_kept", "logs_kept"]
+
+    def _kept(self, obj, days):
+        return bool(obj.trace_id) and obj.occurred_at >= timezone.now() - timedelta(days=days)
+
+    def get_trace_kept(self, obj):
+        return self._kept(obj, settings.OBS_TRACE_KEEP_DAYS)
+
+    def get_logs_kept(self, obj):
+        return self._kept(obj, settings.OBS_LOG_KEEP_DAYS)
 
 
 def _choice(params, name, choices):
@@ -242,18 +259,18 @@ def _parse(body):
     return data
 
 
-def _throttled(request):
+def _throttled(request, kind="js", ip_limit=None, school_limit=None):
     """Over the per IP or per school limit. With Redis down nothing can be
     counted, so reports are dropped rather than let through unlimited."""
-    from django.conf import settings
-
     minute = counters.minute_stamp(timezone.now())
     school = counters.school_key(capture.current_school_id())
-    by_ip = counters.hit(f"obs:js:ip:{ingest_ip(request)}:{minute}", THROTTLE_TTL)
-    by_school = counters.hit(f"obs:js:school:{school}:{minute}", THROTTLE_TTL)
+    by_ip = counters.hit(f"obs:{kind}:ip:{ingest_ip(request)}:{minute}", THROTTLE_TTL)
+    by_school = counters.hit(f"obs:{kind}:school:{school}:{minute}", THROTTLE_TTL)
     if by_ip is None or by_school is None:
         return True
-    return by_ip > settings.OBS_JS_IP_PER_MIN or by_school > settings.OBS_JS_SCHOOL_PER_MIN
+    if ip_limit is None:
+        ip_limit, school_limit = settings.OBS_JS_IP_PER_MIN, settings.OBS_JS_SCHOOL_PER_MIN
+    return by_ip > ip_limit or by_school > school_limit
 
 
 @csrf_exempt
@@ -281,4 +298,84 @@ def ingest_js_error(request):
         role=getattr(user, "role", None) if user else None,
         user_agent=request.META.get("HTTP_USER_AGENT", "")[:255],
     )
+    return HttpResponse(status=204)
+
+
+# Web Vitals ingest (spec 0006, AC-26).
+
+VITALS_MAX_BYTES = 4 * 1024
+# Highest accepted value per vital: milliseconds for LCP and INP, the
+# unitless layout shift score for CLS.
+VITAL_LIMITS = {"LCP": 60000, "INP": 60000, "CLS": 10}
+PAGE_MAX = 255
+# Distinct pages a school reports in one UTC day; vitals for further new
+# pages are dropped, so a bad route pattern can't flood the series table.
+VITALS_PAGES_PER_DAY = 100
+PAGES_TTL = 26 * 60 * 60
+
+
+def _parse_vital(body):
+    try:
+        data = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    name, value, page = data.get("name"), data.get("value"), data.get("page")
+    if name not in VITAL_LIMITS or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not 0 <= value <= VITAL_LIMITS[name]:
+        return None
+    if not isinstance(page, str) or not page.startswith("/") or len(page) > PAGE_MAX:
+        return None
+    return name, float(value), page
+
+
+def _page_allowed(school_id, page):
+    """Within the school's distinct pages for today. With Redis down the
+    page can't be checked, so it's dropped (as when throttled)."""
+    day = timezone.now().strftime("%Y%m%d")
+    name = f"obs:vitals:pages:{counters.school_key(school_id)}:{day}"
+
+    def check(redis):
+        pipe = redis.pipeline(transaction=False)
+        pipe.sismember(name, page)
+        pipe.scard(name)
+        known, count = pipe.execute()
+        if known:
+            return True
+        if int(count) >= VITALS_PAGES_PER_DAY:
+            return False
+        pipe = redis.pipeline(transaction=False)
+        pipe.sadd(name, page)
+        pipe.expire(name, PAGES_TTL)
+        pipe.execute()
+        return True
+
+    return bool(counters.run(check))
+
+
+@csrf_exempt
+@require_POST
+def ingest_vitals(request):
+    """``POST /api/telemetry/vitals/``: one Web Vital from ``sendBeacon``. No
+    token, and the body is read as JSON whatever its content type (a beacon
+    sends ``text/plain``)."""
+    length = request.META.get("CONTENT_LENGTH") or "0"
+    if (length.isdigit() and int(length) > VITALS_MAX_BYTES) or len(request.body) > VITALS_MAX_BYTES:
+        return JsonResponse({"detail": "Report too large."}, status=413)
+    vital = _parse_vital(request.body)
+    if vital is None:
+        return JsonResponse({"detail": "Malformed vitals report."}, status=400)
+    if not metrics.metrics_enabled():
+        return HttpResponse(status=204)
+    if _throttled(request, "vitals", settings.OBS_VITALS_IP_PER_MIN, settings.OBS_VITALS_SCHOOL_PER_MIN):
+        return HttpResponse(status=204)
+    name, value, page = vital
+    school_id = capture.current_school_id()
+    if not _page_allowed(school_id, page):
+        return HttpResponse(status=204)
+    with context.for_school(school_id):
+        # CLS is stored times 1000, so the histogram's buckets resolve it.
+        metrics.BROWSER_VITALS.record(value * 1000 if name == "CLS" else value, name=name, page=page)
     return HttpResponse(status=204)

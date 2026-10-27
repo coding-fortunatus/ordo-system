@@ -43,3 +43,19 @@ tenant-schemas-celery==5.0.0
 pyotp==2.10.0
 cryptography==50.0.2
 boto3==1.43.111
+
+# Metrics, logs and traces (spec 0006)
+opentelemetry-api==1.45.1
+opentelemetry-sdk==1.45.1
+opentelemetry-instrumentation==0.66b1
+opentelemetry-instrumentation-asgi==0.66b1
+opentelemetry-instrumentation-django==0.66b1
+opentelemetry-instrumentation-psycopg2==0.66b1
+opentelemetry-instrumentation-redis==0.66b1
+opentelemetry-instrumentation-httpx==0.66b1
+opentelemetry-instrumentation-celery==0.66b1
+# Host CPU, memory and disk for the metrics (spec 0006).
+psutil==7.2.2
+# Tests only: the telemetry Redis in process, with Lua for the metric merge.
+fakeredis==2.40.0
+lupa==2.8

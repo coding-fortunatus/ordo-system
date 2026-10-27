@@ -52,7 +52,10 @@ class Command(BaseCommand):
         if mode == 'beat':
             argv = ['beat', '-l', loglevel]
         else:
-            argv = ['worker', '-l', loglevel, '--concurrency', concurrency]
+            # Both queues locally; production gives observability its own
+            # worker (spec 0006).
+            argv = ['worker', '-l', loglevel, '--concurrency', concurrency,
+                    '-Q', 'celery,observability']
             if mode == 'all':
                 argv.append('-B')
 

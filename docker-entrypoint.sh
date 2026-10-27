@@ -121,6 +121,18 @@ elif [ "${SERVICE_TYPE}" = "worker" ]; then
     # Start Celery worker
     exec celery -A core worker -l info --concurrency=4
     
+elif [ "${SERVICE_TYPE}" = "worker-observability" ]; then
+    # Telemetry only (spec 0006): the 10 second flush, partitions, and later
+    # the host, database and media numbers. One at a time, so flushes never
+    # overlap and the shared Postgres never sees two.
+    echo "Starting Celery observability worker..."
+
+    wait_for_postgres
+    wait_for_redis
+
+    export OBS_PROCESS_ROLE="${OBS_PROCESS_ROLE:-worker-observability}"
+    exec celery -A core worker -l info -Q observability --concurrency=1
+
 elif [ "${SERVICE_TYPE}" = "beat" ]; then
     echo "Starting Celery Beat..."
     

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Ban,
@@ -19,6 +19,7 @@ import {
   useSchool,
   useSchoolUsage,
 } from "@/api/platform";
+import type { MetricRange } from "@/api/telemetry";
 import { TrendChart } from "@/components/trend-chart";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractErrorEnvelope } from "@/lib/api";
 import { orEmpty } from "@/lib/format";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
@@ -33,6 +35,7 @@ import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
 import { StartSupportDialog, SupportSessionsCard } from "./school-support";
 import { AuditTable } from "./audit";
 import { ErrorGroupsCard, HealthCard } from "./errors";
+import { SchoolObservability } from "./observability";
 import { SchoolStatusBadge, formatDay, useSchoolActions } from "./schools";
 
 function BackToSchools() {
@@ -47,7 +50,12 @@ function BackToSchools() {
   );
 }
 
-export default function ConsoleSchoolDetailPage({ id }: { id: number }) {
+export interface SchoolSearch {
+  tab?: "observability";
+  range?: MetricRange;
+}
+
+export default function ConsoleSchoolDetailPage({ id, search = {} }: { id: number; search?: SchoolSearch }) {
   const school = useSchool(id);
 
   if (school.isLoading) {
@@ -72,11 +80,22 @@ export default function ConsoleSchoolDetailPage({ id }: { id: number }) {
       </div>
     );
   }
-  return <SchoolView school={school.data} />;
+  return <SchoolView school={school.data} search={search} />;
 }
 
-function SchoolView({ school }: { school: SchoolDetail }) {
+function SchoolView({ school, search }: { school: SchoolDetail; search: SchoolSearch }) {
   const { admin } = usePlatformAuth();
+  const navigate = useNavigate();
+  // Telemetry exists once the school's database does (spec 0006).
+  const observed = school.status !== "provisioning" && school.status !== "failed";
+  const tab = observed && search.tab === "observability" ? "observability" : "overview";
+  const setSearch = (patch: SchoolSearch) =>
+    void navigate({
+      to: "/console/schools/$id",
+      params: { id: String(school.id) },
+      search: { ...search, ...patch },
+      replace: true,
+    });
   const actions = useSchoolActions();
   const owner = isPlatformOwner(admin);
   const [suspending, setSuspending] = useState(false);
@@ -229,89 +248,111 @@ function SchoolView({ school }: { school: SchoolDetail }) {
       <DeleteSchoolDialog school={school} open={deleting} onOpenChange={setDeleting} />
       <StartSupportDialog school={school} open={supporting} onOpenChange={setSupporting} />
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Section title="First administrator">
-          <Row label="Name">{school.first_admin_name}</Row>
-          <Row label="Email">{school.first_admin_email}</Row>
-          <Row label="Status">
-            {firstAdmin === null ? (
-              <span className="text-muted-foreground">Invited once setup finishes</span>
-            ) : firstAdmin.joined ? (
-              <Badge>Joined</Badge>
-            ) : firstAdmin.invite_expires_at &&
-              new Date(firstAdmin.invite_expires_at) > new Date() ? (
-              <span>Invite open until {formatDay(firstAdmin.invite_expires_at)}</span>
-            ) : (
-              <Badge variant="warning">Invite expired, resend it</Badge>
-            )}
-          </Row>
-        </Section>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setSearch({ tab: value === "observability" ? "observability" : undefined })}
+      >
+        {observed && (
+          <TabsList variant="line" className="mb-6">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="observability">Observability</TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="overview" className="space-y-8">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Section title="First administrator">
+              <Row label="Name">{school.first_admin_name}</Row>
+              <Row label="Email">{school.first_admin_email}</Row>
+              <Row label="Status">
+                {firstAdmin === null ? (
+                  <span className="text-muted-foreground">Invited once setup finishes</span>
+                ) : firstAdmin.joined ? (
+                  <Badge>Joined</Badge>
+                ) : firstAdmin.invite_expires_at &&
+                  new Date(firstAdmin.invite_expires_at) > new Date() ? (
+                  <span>Invite open until {formatDay(firstAdmin.invite_expires_at)}</span>
+                ) : (
+                  <Badge variant="warning">Invite expired, resend it</Badge>
+                )}
+              </Row>
+            </Section>
 
-        <Section title="Plan">
-          <Row label="Plan">{school.plan.name}</Row>
-          <Row label="Student limit">
-            {school.max_students_override ?? <span className="text-muted-foreground">Plan's limit</span>}
-          </Row>
-          <Row label="Staff limit">
-            {school.max_staff_users_override ?? <span className="text-muted-foreground">Plan's limit</span>}
-          </Row>
-          <Row label="Features">
-            {features === null ? (
-              <span className="text-muted-foreground">Plan's features</span>
-            ) : features.length ? (
-              features.map((f) => FEATURE_LABELS[f]).join(", ")
-            ) : (
-              "None"
-            )}
-          </Row>
-          <Row label="Started">{formatDay(school.plan_started_on)}</Row>
-          <Row label="Renews">{formatDay(school.renews_on)}</Row>
-        </Section>
+            <Section title="Plan">
+              <Row label="Plan">{school.plan.name}</Row>
+              <Row label="Student limit">
+                {school.max_students_override ?? <span className="text-muted-foreground">Plan's limit</span>}
+              </Row>
+              <Row label="Staff limit">
+                {school.max_staff_users_override ?? <span className="text-muted-foreground">Plan's limit</span>}
+              </Row>
+              <Row label="Features">
+                {features === null ? (
+                  <span className="text-muted-foreground">Plan's features</span>
+                ) : features.length ? (
+                  features.map((f) => FEATURE_LABELS[f]).join(", ")
+                ) : (
+                  "None"
+                )}
+              </Row>
+              <Row label="Started">{formatDay(school.plan_started_on)}</Row>
+              <Row label="Renews">{formatDay(school.renews_on)}</Row>
+            </Section>
 
-        <Section title="School">
-          <Row label="Address">
-            {school.domains.map((d) => (
-              <span key={d.domain} className="block font-mono text-[12.5px]">
-                {d.domain}
-              </span>
-            ))}
-          </Row>
-          <Row label="Time zone">{school.timezone}</Row>
-          <Row label="Country">{orEmpty(school.country)}</Row>
-          <Row label="Created">
-            {formatDay(school.created_at)}
-            {school.created_by && (
-              <span className="text-muted-foreground"> by {school.created_by.name}</span>
-            )}
-          </Row>
-        </Section>
+            <Section title="School">
+              <Row label="Address">
+                {school.domains.map((d) => (
+                  <span key={d.domain} className="block font-mono text-[12.5px]">
+                    {d.domain}
+                  </span>
+                ))}
+              </Row>
+              <Row label="Time zone">{school.timezone}</Row>
+              <Row label="Country">{orEmpty(school.country)}</Row>
+              <Row label="Created">
+                {formatDay(school.created_at)}
+                {school.created_by && (
+                  <span className="text-muted-foreground"> by {school.created_by.name}</span>
+                )}
+              </Row>
+            </Section>
 
-        <Section title="Contact">
-          <Row label="Name">{orEmpty(school.contact_name)}</Row>
-          <Row label="Email">{orEmpty(school.contact_email)}</Row>
-          <Row label="Notes">
-            {school.notes ? (
-              <span className="whitespace-pre-wrap">{school.notes}</span>
-            ) : (
-              <span className="text-muted-foreground">None</span>
-            )}
-          </Row>
-        </Section>
-      </div>
+            <Section title="Contact">
+              <Row label="Name">{orEmpty(school.contact_name)}</Row>
+              <Row label="Email">{orEmpty(school.contact_email)}</Row>
+              <Row label="Notes">
+                {school.notes ? (
+                  <span className="whitespace-pre-wrap">{school.notes}</span>
+                ) : (
+                  <span className="text-muted-foreground">None</span>
+                )}
+              </Row>
+            </Section>
+          </div>
 
-      {school.status !== "provisioning" && school.status !== "failed" && (
-        <section id="errors" aria-labelledby="errors-heading" className="scroll-mt-24 space-y-6">
-          <h2 id="errors-heading" className="font-serif text-[1.75rem] leading-tight tracking-[-0.01em]">
-            Errors
-          </h2>
-          <HealthCard scope={school.id} />
-          <ErrorGroupsCard scope={school.id} />
-        </section>
-      )}
+          {school.status !== "provisioning" && school.status !== "failed" && (
+            <section id="errors" aria-labelledby="errors-heading" className="scroll-mt-24 space-y-6">
+              <h2 id="errors-heading" className="font-serif text-[1.75rem] leading-tight tracking-[-0.01em]">
+                Errors
+              </h2>
+              <HealthCard scope={school.id} />
+              <ErrorGroupsCard scope={school.id} />
+            </section>
+          )}
 
-      <UsageCard schoolId={school.id} />
-      <SupportSessionsCard schoolId={school.id} />
-      <ActivityCard schoolId={school.id} />
+          <UsageCard schoolId={school.id} />
+          <SupportSessionsCard schoolId={school.id} />
+          <ActivityCard schoolId={school.id} />
+        </TabsContent>
+        {observed && (
+          <TabsContent value="observability">
+            <SchoolObservability
+              schoolId={school.id}
+              range={search.range ?? "24h"}
+              onRange={(range) => setSearch({ range: range === "24h" ? undefined : range })}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

@@ -4,7 +4,7 @@ from django.conf import settings
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
 
-from tenancy.observability.views import ingest_js_error
+from tenancy.observability.views import ingest_js_error, ingest_vitals
 
 # School hosts (<slug>.<base>). API-only: the dashboard is a separate
 # TanStack Start service (frontend/). console.<base> and api.<base> use
@@ -25,6 +25,7 @@ def school_media(request, path):
 urlpatterns = [
     # Browser error reports, no token needed (spec 0004).
     path("api/telemetry/errors/", ingest_js_error),
+    path("api/telemetry/vitals/", ingest_vitals),
     path("api/", include("ems.api.urls")),
     re_path(rf"^{_media_prefix}(?P<path>.*)$", school_media),
 ]

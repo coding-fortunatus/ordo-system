@@ -32,6 +32,11 @@ class Command(BaseCommand):
                         "migrate_schemas", tenant=True, interactive=False, verbosity=verbosity
                     )
                     call_command("ensure_public_domains", verbosity=verbosity)
+                    # Telemetry partitions for today and the next days, so a
+                    # release never waits for the nightly run (spec 0006).
+                    from tenancy.observability import partitions
+
+                    partitions.maintain()
                 finally:
                     cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", [LOCK_KEY])
         finally:

@@ -4,6 +4,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useRouterState,
 } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { getConfig } from "@/lib/server-config";
@@ -15,6 +16,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { BrandApplier, brandCss } from "@/lib/brand";
 import { Toaster } from "@/components/toaster";
 import { installErrorReporter } from "@/lib/error-reporter";
+import { installVitals, setVitalsPage } from "@/lib/vitals";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import styles from "@/index.css?url";
 
@@ -57,6 +59,13 @@ function RootComponent() {
   // Set during render, so it's in place before any page's queries run.
   setApiOrigin(origins.api);
   useEffect(() => installErrorReporter(host), [host]);
+  // Web Vitals from the school dashboard and the console only (spec 0006).
+  const page = useRouterState({ select: (state) => state.matches[state.matches.length - 1]?.fullPath ?? "" });
+  const reportsVitals = host === "school" || host === "console";
+  useEffect(() => setVitalsPage(reportsVitals ? page : ""), [page, reportsVitals]);
+  useEffect(() => {
+    if (reportsVitals) installVitals();
+  }, [reportsVitals]);
   const [queryClient] = useState(makeQueryClient);
   const brand = brandCss(branding?.brand_color);
 

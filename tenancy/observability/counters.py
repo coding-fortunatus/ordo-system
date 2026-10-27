@@ -282,6 +282,23 @@ class MemoryRedis:
         with self._lock:
             return len(self._live(name) or {})
 
+    def sadd(self, name, *members):
+        with self._lock:
+            values = self._live(name)
+            if values is None:
+                values = self._data[name] = set()
+            added = len(set(members) - values)
+            values.update(members)
+            return added
+
+    def sismember(self, name, member):
+        with self._lock:
+            return int(member in (self._live(name) or set()))
+
+    def scard(self, name):
+        with self._lock:
+            return len(self._live(name) or set())
+
 
 class _MemoryPipeline:
     def __init__(self, redis):

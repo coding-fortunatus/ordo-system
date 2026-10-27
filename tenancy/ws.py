@@ -5,17 +5,22 @@ on no school's schema. So the school is resolved once, at connect, into
 ``scope["school"]``, and every database call goes through :func:`in_school`
 (spec 0003, child 0001).
 """
+import json
 import re
+from contextlib import contextmanager
 
 from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
+from channels.exceptions import StopConsumer
 from channels.security.websocket import OriginValidator
 from django.conf import settings
 from django.http.request import split_domain_port
 from django_tenants.utils import get_public_schema_name, schema_context
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from tenancy.models import Domain, School
-from tenancy.observability import capture, counters
+from tenancy.observability import capture, context, counters, otel
+from tenancy.observability.sampling import SEGMENT_KIND_ATTRIBUTE
 
 # Close code for an unknown or purged school, mirroring the HTTP 404.
 CLOSE_SCHOOL_NOT_FOUND = 4404
@@ -97,27 +102,102 @@ class SchoolScopeMiddleware:
 
 # A plain close; anything else a consumer closes with is a refusal or error.
 CLOSE_NORMAL = 1000
+# A message's ``type`` names its span; bigger bodies aren't parsed for it.
+MESSAGE_TYPE_MAX = 50
+PARSE_MAX_BYTES = 64 * 1024
+
+
+def message_type(message):
+    """The ``type`` key of a JSON text frame, cut short, or ""."""
+    text = message.get("text")
+    if not text or len(text) > PARSE_MAX_BYTES:
+        return ""
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return ""
+    value = body.get("type") if isinstance(body, dict) else None
+    return str(value)[:MESSAGE_TYPE_MAX] if value is not None else ""
 
 
 class ObservedConsumerMixin:
     """Capture exceptions escaping a consumer's connect and receive, and
-    count every refusal or error close (spec 0004, AC-6)."""
+    count every refusal or error close (spec 0004, AC-6).
+
+    Connect, each received message and disconnect are also each a segment of
+    their own, kind ``ws``, in the socket's school (spec 0006, AC-16)."""
+
+    _ordo_accepted = False
+
+    @contextmanager
+    def _traced(self, event, detail=""):
+        consumer = type(self).__name__
+        school = self.scope.get("school")
+        user = self.scope.get("user")
+        user_id = user.pk if user is not None and getattr(user, "is_authenticated", False) else None
+        tokens = (
+            context.ws_school_id.set(getattr(school, "pk", None)),
+            context.user_id.set(user_id),
+        )
+        attributes = {SEGMENT_KIND_ATTRIBUTE: "ws", "ordo.route": consumer, "ordo.consumer": consumer}
+        if school is not None:
+            attributes["ordo.school_id"] = school.pk
+        if user_id is not None:
+            attributes["ordo.user_id"] = user_id
+        name = f"ws.{event} {consumer}" + (f".{detail}" if detail else "")
+        try:
+            with otel.tracer("ordo.ws").start_as_current_span(
+                name,
+                kind=SpanKind.SERVER,
+                attributes=attributes,
+                record_exception=False,
+                set_status_on_exception=False,
+            ) as span:
+                try:
+                    yield span
+                except StopConsumer:
+                    raise
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+                    raise
+        finally:
+            context.ws_school_id.reset(tokens[0])
+            context.user_id.reset(tokens[1])
 
     async def websocket_connect(self, message):
-        try:
-            return await super().websocket_connect(message)
-        except Exception as exc:
-            await capture_ws(self.scope, exc)
-            await count_ws_error(self.scope.get("school"))
-            raise
+        with self._traced("connect") as span:
+            try:
+                return await super().websocket_connect(message)
+            except Exception as exc:
+                await capture_ws(self.scope, exc)
+                await count_ws_error(self.scope.get("school"))
+                raise
+            finally:
+                span.set_attribute("ordo.ws_accepted", self._ordo_accepted)
 
     async def websocket_receive(self, message):
-        try:
-            return await super().websocket_receive(message)
-        except Exception as exc:
-            await capture_ws(self.scope, exc)
-            await count_ws_error(self.scope.get("school"))
-            raise
+        kind = message_type(message)
+        with self._traced("receive", kind) as span:
+            if kind:
+                span.set_attribute("ordo.message_type", kind)
+            try:
+                return await super().websocket_receive(message)
+            except Exception as exc:
+                await capture_ws(self.scope, exc)
+                await count_ws_error(self.scope.get("school"))
+                raise
+
+    async def websocket_disconnect(self, message):
+        with self._traced("disconnect") as span:
+            code = message.get("code")
+            if isinstance(code, int):
+                span.set_attribute("ordo.ws_close_code", code)
+            return await super().websocket_disconnect(message)
+
+    async def accept(self, subprotocol=None, headers=None):
+        self._ordo_accepted = True
+        await super().accept(subprotocol=subprotocol, headers=headers)
 
     async def close(self, code=None, reason=None):
         if code is not None and code is not True and code != CLOSE_NORMAL:

@@ -2,6 +2,7 @@
 from django.urls import path
 
 from tenancy import account_views, console_views, school_views, views
+from tenancy.observability import alert_views, dashboard_views, metric_views, telemetry_views
 from tenancy.observability import views as observability_views
 
 urlpatterns = [
@@ -57,4 +58,20 @@ urlpatterns = [
     path("errors/<int:pk>/", observability_views.ErrorGroupDetailView.as_view()),
     path("errors/<int:pk>/events/", observability_views.ErrorEventListView.as_view()),
     path("errors/<int:pk>/status/", observability_views.ErrorGroupStatusView.as_view()),
+    # Metrics, logs and traces (spec 0006).
+    path("observability/traces/", telemetry_views.TraceListView.as_view()),
+    path("observability/traces/<str:trace_id>/", telemetry_views.TraceDetailView.as_view()),
+    path("observability/logs/", telemetry_views.LogListView.as_view()),
+    path("observability/overview/", metric_views.OverviewView.as_view()),
+    path("observability/schools/<int:pk>/overview/", metric_views.SchoolOverviewView.as_view()),
+    path("observability/routes/", metric_views.RoutesView.as_view()),
+    path("observability/top-schools/", metric_views.TopSchoolsView.as_view()),
+    path("observability/metrics/registry/", metric_views.RegistryView.as_view()),
+    path("observability/metrics/query/", metric_views.MetricQueryView.as_view()),
+    path("observability/dashboards/", dashboard_views.DashboardListView.as_view()),
+    path("observability/dashboards/<int:pk>/", dashboard_views.DashboardDetailView.as_view()),
+    path("observability/alert-rules/", alert_views.AlertRuleListView.as_view()),
+    path("observability/alert-rules/preview/", alert_views.AlertRulePreviewView.as_view()),
+    path("observability/alert-rules/<int:pk>/", alert_views.AlertRuleDetailView.as_view()),
+    path("observability/incidents/", alert_views.IncidentListView.as_view()),
 ]

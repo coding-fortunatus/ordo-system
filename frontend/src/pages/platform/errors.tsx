@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   AlertTriangle,
@@ -6,6 +7,8 @@ import {
   CircleDashed,
   EyeOff,
   RotateCcw,
+  ScrollText,
+  Waypoints,
   XCircle,
 } from "lucide-react";
 import {
@@ -569,8 +572,42 @@ function EventCard({ event }: { event: ErrorEvent }) {
           </dl>
         )}
         <StackTrace frames={event.stack} />
+        <TraceLinks event={event} />
       </div>
     </article>
+  );
+}
+
+/** The request or job the error happened in, and its logs (spec 0006, AC-15). */
+function TraceLinks({ event }: { event: ErrorEvent }) {
+  if (!event.trace_id) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--border)] pt-3">
+      {event.trace_kept ? (
+        <Button
+          variant="outline"
+          size="sm"
+          render={<Link to="/console/observability/traces/$traceId" params={{ traceId: event.trace_id }} />}
+        >
+          <Waypoints data-icon="inline-start" />
+          View trace
+        </Button>
+      ) : (
+        <span className="text-[12px] text-muted-foreground">Trace expired</span>
+      )}
+      {event.logs_kept ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link to="/console/observability/logs" search={{ trace: event.trace_id }} />}
+        >
+          <ScrollText data-icon="inline-start" />
+          View logs
+        </Button>
+      ) : (
+        <span className="text-[12px] text-muted-foreground">Logs expired</span>
+      )}
+    </div>
   );
 }
 

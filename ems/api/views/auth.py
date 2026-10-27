@@ -1,9 +1,11 @@
 from rest_framework import permissions, status
 from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems.api.serializers.user import LoginSerializer, UserSerializer
+from tenancy.observability import metrics
 
 
 class LoginView(APIView):
@@ -16,7 +18,10 @@ class LoginView(APIView):
         serializer = LoginSerializer(
             data=request.data, context={"request": request}
         )
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            metrics.LOGINS.add(1, outcome="failed", via="api")
+            raise ValidationError(serializer.errors)
+        metrics.LOGINS.add(1, outcome="succeeded", via="api")
         user = serializer.validated_data["user"]
         # Single session per account: rotate the token on every login so any
         # previously signed-in device is invalidated (its next request 401s and

@@ -1,13 +1,25 @@
-"""Observability beat tasks (spec 0004). Both run in the public schema."""
+"""Observability beat tasks (spec 0004, spec 0006). All run in the public
+schema. Spec 0006's run on the ``observability`` queue with instrumentation
+suppressed, so they produce no spans of their own."""
 import logging
 from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 
-from tenancy.models import ErrorEvent, ErrorGroup, HealthBucket, SchoolHealth
-from tenancy.observability import alerts, health
+from tenancy.models import (
+    AlertIncident,
+    AlertState,
+    ErrorEvent,
+    ErrorGroup,
+    HealthBucket,
+    MetricRollup,
+    MetricSeries,
+    SchoolHealth,
+)
+from tenancy.observability import alert_rules, alerts, flush, health, metric_store, partitions, samplers
 
 logger = logging.getLogger("ordo.observability")
 
@@ -56,12 +68,102 @@ def prune_observability():
     # thousands of rows.
     _delete_in_batches(ErrorEvent.objects.filter(group__in=stale_groups))
     _delete_in_batches(stale_groups)
+    # Spec 0006: hourly metric rollups past their retention.
+    _delete_in_batches(
+        MetricRollup.objects.filter(hour__lt=now - timedelta(days=settings.OBS_ROLLUP_KEEP_DAYS))
+    )
 
 
 def purge_school(school):
-    """Every observability row of a school being purged."""
+    """Every observability row of a school being purged (spec 0004 AC-20,
+    spec 0006 AC-25)."""
     _delete_in_batches(ErrorEvent.objects.filter(school=school))
     _delete_in_batches(ErrorEvent.objects.filter(group__school=school))
     _delete_in_batches(ErrorGroup.objects.filter(school=school))
     HealthBucket.objects.filter(school=school).delete()
     SchoolHealth.objects.filter(school=school).delete()
+    # Spec 0006 (AC-25): traces, spans, logs and minute points first (the
+    # points are found through the series), then the series and rollups.
+    # Charts fixed to the school stay, showing it as purged.
+    partitions.delete_school(school.pk)
+    _delete_in_batches(MetricRollup.objects.filter(series__school=school))
+    _delete_in_batches(MetricSeries.objects.filter(school=school))
+    _delete_in_batches(AlertIncident.objects.filter(school=school))
+    AlertState.objects.filter(school=school).delete()
+
+
+@shared_task(ignore_result=True)
+def flush_telemetry():
+    """Buffered telemetry into Postgres (beat, every 10 seconds; AC-5)."""
+    if not settings.OBSERVABILITY_ENABLED:
+        return
+    with suppress_instrumentation():
+        flush.flush()
+
+
+@shared_task(ignore_result=True)
+def maintain_partitions():
+    """Create partitions ahead and drop expired ones (beat, daily 00:15 UTC,
+    and after ``migrate_platform``; AC-6)."""
+    with suppress_instrumentation():
+        dropped = partitions.maintain()
+    if dropped:
+        logger.info("Dropped expired telemetry partitions: %s", ", ".join(dropped))
+
+
+@shared_task(ignore_result=True)
+def rollup_metrics():
+    """Minute points into hourly rollups (beat, minute 5 of every hour;
+    AC-11)."""
+    if not settings.OBSERVABILITY_ENABLED:
+        return
+    with suppress_instrumentation():
+        metric_store.rollup_due(settings.OBSERVABILITY_DB_ALIAS)
+
+
+def _sample(sampler):
+    if not (settings.OBSERVABILITY_ENABLED and settings.OBSERVABILITY_METRICS_ENABLED):
+        return
+    with suppress_instrumentation():
+        sampler()
+
+
+@shared_task(ignore_result=True)
+def observe_queues():
+    """Celery queue depths (beat, every minute; AC-8)."""
+    _sample(samplers.observe_queues)
+
+
+@shared_task(ignore_result=True)
+def observe_host():
+    """Host CPU, memory and disk (beat, every minute; AC-8)."""
+    _sample(samplers.observe_host)
+
+
+@shared_task(ignore_result=True)
+def observe_db_size():
+    """Database and school schema sizes (beat, hourly; AC-8)."""
+    _sample(samplers.observe_db_size)
+
+
+@shared_task(ignore_result=True)
+def observe_media():
+    """Media bytes per school (beat, daily 02:00 UTC; AC-8)."""
+    _sample(samplers.observe_media)
+
+
+@shared_task(ignore_result=True)
+def record_daily_active():
+    """Yesterday's daily active users per school (beat, daily 00:10 UTC;
+    AC-9)."""
+    _sample(samplers.record_daily_active)
+
+
+@shared_task(ignore_result=True)
+def evaluate_alert_rules():
+    """Threshold rules and the flush stalled check (beat, every minute;
+    AC-18, AC-19)."""
+    if not settings.OBSERVABILITY_ENABLED:
+        return
+    with suppress_instrumentation():
+        alert_rules.evaluate()

@@ -15,6 +15,7 @@ from ems.api.serializers.user import (
     ChangePasswordSerializer,
     UserSerializer,
 )
+from ems.export_files import counted_export
 from ems.models import Department, User
 from tenancy import limits
 
@@ -105,7 +106,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     timezone.localtime(u.created_at).strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
                 ]
             )
-        return response
+        return counted_export("users", response)
 
     @action(detail=False, methods=["post"], url_path="seed-departments")
     def seed_departments(self, request):

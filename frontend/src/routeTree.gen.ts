@@ -46,9 +46,17 @@ import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platf
 import { Route as PlatformConsoleConsoleHealthRouteImport } from './routes/_platform/_console/console.health'
 import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platform/_console/console.plans'
 import { Route as PlatformConsoleConsoleStaffRouteImport } from './routes/_platform/_console/console.staff'
+import { Route as PlatformConsoleConsoleObservabilityIndexRouteImport } from './routes/_platform/_console/console.observability.index'
+import { Route as PlatformConsoleConsoleObservabilityAlertsRouteImport } from './routes/_platform/_console/console.observability.alerts'
+import { Route as PlatformConsoleConsoleObservabilityLogsRouteImport } from './routes/_platform/_console/console.observability.logs'
+import { Route as PlatformConsoleConsoleObservabilityMetricsRouteImport } from './routes/_platform/_console/console.observability.metrics'
 import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
 import { Route as PlatformConsoleConsoleSchoolsIdRouteImport } from './routes/_platform/_console/console.schools.$id'
 import { Route as PlatformConsoleConsoleSchoolsNewRouteImport } from './routes/_platform/_console/console.schools.new'
+import { Route as PlatformConsoleConsoleObservabilityDashboardsIndexRouteImport } from './routes/_platform/_console/console.observability.dashboards.index'
+import { Route as PlatformConsoleConsoleObservabilityDashboardsIdRouteImport } from './routes/_platform/_console/console.observability.dashboards.$id'
+import { Route as PlatformConsoleConsoleObservabilityTracesIndexRouteImport } from './routes/_platform/_console/console.observability.traces.index'
+import { Route as PlatformConsoleConsoleObservabilityTracesTraceIdRouteImport } from './routes/_platform/_console/console.observability.traces.$traceId'
 import { Route as PlatformConsoleConsoleSchoolsIdEditRouteImport } from './routes/_platform/_console/console.schools.$id_.edit'
 
 const AppRoute = AppRouteImport.update({
@@ -241,6 +249,30 @@ const PlatformConsoleConsoleStaffRoute =
     path: '/console/staff',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleObservabilityIndexRoute =
+  PlatformConsoleConsoleObservabilityIndexRouteImport.update({
+    id: '/console/observability/',
+    path: '/console/observability/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityAlertsRoute =
+  PlatformConsoleConsoleObservabilityAlertsRouteImport.update({
+    id: '/console/observability/alerts',
+    path: '/console/observability/alerts',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityLogsRoute =
+  PlatformConsoleConsoleObservabilityLogsRouteImport.update({
+    id: '/console/observability/logs',
+    path: '/console/observability/logs',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityMetricsRoute =
+  PlatformConsoleConsoleObservabilityMetricsRouteImport.update({
+    id: '/console/observability/metrics',
+    path: '/console/observability/metrics',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 const PlatformConsoleConsoleSchoolsIndexRoute =
   PlatformConsoleConsoleSchoolsIndexRouteImport.update({
     id: '/console/schools/',
@@ -257,6 +289,30 @@ const PlatformConsoleConsoleSchoolsNewRoute =
   PlatformConsoleConsoleSchoolsNewRouteImport.update({
     id: '/console/schools/new',
     path: '/console/schools/new',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityDashboardsIndexRoute =
+  PlatformConsoleConsoleObservabilityDashboardsIndexRouteImport.update({
+    id: '/console/observability/dashboards/',
+    path: '/console/observability/dashboards/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityDashboardsIdRoute =
+  PlatformConsoleConsoleObservabilityDashboardsIdRouteImport.update({
+    id: '/console/observability/dashboards/$id',
+    path: '/console/observability/dashboards/$id',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityTracesIndexRoute =
+  PlatformConsoleConsoleObservabilityTracesIndexRouteImport.update({
+    id: '/console/observability/traces/',
+    path: '/console/observability/traces/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleObservabilityTracesTraceIdRoute =
+  PlatformConsoleConsoleObservabilityTracesTraceIdRouteImport.update({
+    id: '/console/observability/traces/$traceId',
+    path: '/console/observability/traces/$traceId',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
 const PlatformConsoleConsoleSchoolsIdEditRoute =
@@ -301,10 +357,18 @@ export interface FileRoutesByFullPath {
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
+  '/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/observability/': typeof PlatformConsoleConsoleObservabilityIndexRoute
   '/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/console/observability/dashboards/$id': typeof PlatformConsoleConsoleObservabilityDashboardsIdRoute
+  '/console/observability/traces/$traceId': typeof PlatformConsoleConsoleObservabilityTracesTraceIdRoute
   '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
+  '/console/observability/dashboards/': typeof PlatformConsoleConsoleObservabilityDashboardsIndexRoute
+  '/console/observability/traces/': typeof PlatformConsoleConsoleObservabilityTracesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -341,10 +405,18 @@ export interface FileRoutesByTo {
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console': typeof PlatformConsoleConsoleIndexRoute
+  '/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
+  '/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/observability': typeof PlatformConsoleConsoleObservabilityIndexRoute
   '/console/schools': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/console/observability/dashboards/$id': typeof PlatformConsoleConsoleObservabilityDashboardsIdRoute
+  '/console/observability/traces/$traceId': typeof PlatformConsoleConsoleObservabilityTracesTraceIdRoute
   '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
+  '/console/observability/dashboards': typeof PlatformConsoleConsoleObservabilityDashboardsIndexRoute
+  '/console/observability/traces': typeof PlatformConsoleConsoleObservabilityTracesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -385,10 +457,18 @@ export interface FileRoutesById {
   '/_platform/_console/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/_platform/_console/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/_platform/_console/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/_platform/_console/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
+  '/_platform/_console/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/_platform/_console/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/_platform/_console/console/observability/': typeof PlatformConsoleConsoleObservabilityIndexRoute
   '/_platform/_console/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/_platform/_console/console/observability/dashboards/$id': typeof PlatformConsoleConsoleObservabilityDashboardsIdRoute
+  '/_platform/_console/console/observability/traces/$traceId': typeof PlatformConsoleConsoleObservabilityTracesTraceIdRoute
   '/_platform/_console/console/schools/$id_/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
+  '/_platform/_console/console/observability/dashboards/': typeof PlatformConsoleConsoleObservabilityDashboardsIndexRoute
+  '/_platform/_console/console/observability/traces/': typeof PlatformConsoleConsoleObservabilityTracesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -427,10 +507,18 @@ export interface FileRouteTypes {
     | '/console/plans'
     | '/console/staff'
     | '/console/'
+    | '/console/observability/alerts'
+    | '/console/observability/logs'
+    | '/console/observability/metrics'
     | '/console/schools/$id'
     | '/console/schools/new'
+    | '/console/observability/'
     | '/console/schools/'
+    | '/console/observability/dashboards/$id'
+    | '/console/observability/traces/$traceId'
     | '/console/schools/$id/edit'
+    | '/console/observability/dashboards/'
+    | '/console/observability/traces/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -467,10 +555,18 @@ export interface FileRouteTypes {
     | '/console/plans'
     | '/console/staff'
     | '/console'
+    | '/console/observability/alerts'
+    | '/console/observability/logs'
+    | '/console/observability/metrics'
     | '/console/schools/$id'
     | '/console/schools/new'
+    | '/console/observability'
     | '/console/schools'
+    | '/console/observability/dashboards/$id'
+    | '/console/observability/traces/$traceId'
     | '/console/schools/$id/edit'
+    | '/console/observability/dashboards'
+    | '/console/observability/traces'
   id:
     | '__root__'
     | '/_app'
@@ -510,10 +606,18 @@ export interface FileRouteTypes {
     | '/_platform/_console/console/plans'
     | '/_platform/_console/console/staff'
     | '/_platform/_console/console/'
+    | '/_platform/_console/console/observability/alerts'
+    | '/_platform/_console/console/observability/logs'
+    | '/_platform/_console/console/observability/metrics'
     | '/_platform/_console/console/schools/$id'
     | '/_platform/_console/console/schools/new'
+    | '/_platform/_console/console/observability/'
     | '/_platform/_console/console/schools/'
+    | '/_platform/_console/console/observability/dashboards/$id'
+    | '/_platform/_console/console/observability/traces/$traceId'
     | '/_platform/_console/console/schools/$id_/edit'
+    | '/_platform/_console/console/observability/dashboards/'
+    | '/_platform/_console/console/observability/traces/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -785,6 +889,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformConsoleConsoleStaffRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
+    '/_platform/_console/console/observability/': {
+      id: '/_platform/_console/console/observability/'
+      path: '/console/observability'
+      fullPath: '/console/observability/'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/alerts': {
+      id: '/_platform/_console/console/observability/alerts'
+      path: '/console/observability/alerts'
+      fullPath: '/console/observability/alerts'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityAlertsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/logs': {
+      id: '/_platform/_console/console/observability/logs'
+      path: '/console/observability/logs'
+      fullPath: '/console/observability/logs'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityLogsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/metrics': {
+      id: '/_platform/_console/console/observability/metrics'
+      path: '/console/observability/metrics'
+      fullPath: '/console/observability/metrics'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityMetricsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
     '/_platform/_console/console/schools/': {
       id: '/_platform/_console/console/schools/'
       path: '/console/schools'
@@ -804,6 +936,34 @@ declare module '@tanstack/react-router' {
       path: '/console/schools/new'
       fullPath: '/console/schools/new'
       preLoaderRoute: typeof PlatformConsoleConsoleSchoolsNewRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/dashboards/': {
+      id: '/_platform/_console/console/observability/dashboards/'
+      path: '/console/observability/dashboards'
+      fullPath: '/console/observability/dashboards/'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityDashboardsIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/dashboards/$id': {
+      id: '/_platform/_console/console/observability/dashboards/$id'
+      path: '/console/observability/dashboards/$id'
+      fullPath: '/console/observability/dashboards/$id'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityDashboardsIdRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/traces/': {
+      id: '/_platform/_console/console/observability/traces/'
+      path: '/console/observability/traces'
+      fullPath: '/console/observability/traces/'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityTracesIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/observability/traces/$traceId': {
+      id: '/_platform/_console/console/observability/traces/$traceId'
+      path: '/console/observability/traces/$traceId'
+      fullPath: '/console/observability/traces/$traceId'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityTracesTraceIdRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
     '/_platform/_console/console/schools/$id_/edit': {
@@ -875,10 +1035,18 @@ interface PlatformConsoleRouteChildren {
   PlatformConsoleConsolePlansRoute: typeof PlatformConsoleConsolePlansRoute
   PlatformConsoleConsoleStaffRoute: typeof PlatformConsoleConsoleStaffRoute
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
+  PlatformConsoleConsoleObservabilityAlertsRoute: typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  PlatformConsoleConsoleObservabilityLogsRoute: typeof PlatformConsoleConsoleObservabilityLogsRoute
+  PlatformConsoleConsoleObservabilityMetricsRoute: typeof PlatformConsoleConsoleObservabilityMetricsRoute
   PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
   PlatformConsoleConsoleSchoolsNewRoute: typeof PlatformConsoleConsoleSchoolsNewRoute
+  PlatformConsoleConsoleObservabilityIndexRoute: typeof PlatformConsoleConsoleObservabilityIndexRoute
   PlatformConsoleConsoleSchoolsIndexRoute: typeof PlatformConsoleConsoleSchoolsIndexRoute
+  PlatformConsoleConsoleObservabilityDashboardsIdRoute: typeof PlatformConsoleConsoleObservabilityDashboardsIdRoute
+  PlatformConsoleConsoleObservabilityTracesTraceIdRoute: typeof PlatformConsoleConsoleObservabilityTracesTraceIdRoute
   PlatformConsoleConsoleSchoolsIdEditRoute: typeof PlatformConsoleConsoleSchoolsIdEditRoute
+  PlatformConsoleConsoleObservabilityDashboardsIndexRoute: typeof PlatformConsoleConsoleObservabilityDashboardsIndexRoute
+  PlatformConsoleConsoleObservabilityTracesIndexRoute: typeof PlatformConsoleConsoleObservabilityTracesIndexRoute
 }
 
 const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
@@ -891,12 +1059,28 @@ const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
   PlatformConsoleConsolePlansRoute: PlatformConsoleConsolePlansRoute,
   PlatformConsoleConsoleStaffRoute: PlatformConsoleConsoleStaffRoute,
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
+  PlatformConsoleConsoleObservabilityAlertsRoute:
+    PlatformConsoleConsoleObservabilityAlertsRoute,
+  PlatformConsoleConsoleObservabilityLogsRoute:
+    PlatformConsoleConsoleObservabilityLogsRoute,
+  PlatformConsoleConsoleObservabilityMetricsRoute:
+    PlatformConsoleConsoleObservabilityMetricsRoute,
   PlatformConsoleConsoleSchoolsIdRoute: PlatformConsoleConsoleSchoolsIdRoute,
   PlatformConsoleConsoleSchoolsNewRoute: PlatformConsoleConsoleSchoolsNewRoute,
+  PlatformConsoleConsoleObservabilityIndexRoute:
+    PlatformConsoleConsoleObservabilityIndexRoute,
   PlatformConsoleConsoleSchoolsIndexRoute:
     PlatformConsoleConsoleSchoolsIndexRoute,
+  PlatformConsoleConsoleObservabilityDashboardsIdRoute:
+    PlatformConsoleConsoleObservabilityDashboardsIdRoute,
+  PlatformConsoleConsoleObservabilityTracesTraceIdRoute:
+    PlatformConsoleConsoleObservabilityTracesTraceIdRoute,
   PlatformConsoleConsoleSchoolsIdEditRoute:
     PlatformConsoleConsoleSchoolsIdEditRoute,
+  PlatformConsoleConsoleObservabilityDashboardsIndexRoute:
+    PlatformConsoleConsoleObservabilityDashboardsIndexRoute,
+  PlatformConsoleConsoleObservabilityTracesIndexRoute:
+    PlatformConsoleConsoleObservabilityTracesIndexRoute,
 }
 
 const PlatformConsoleRouteWithChildren = PlatformConsoleRoute._addFileChildren(

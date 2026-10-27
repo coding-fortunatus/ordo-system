@@ -56,3 +56,18 @@ class SpooledFileResponse(StreamingHttpResponse):
         read = sync_to_async(self._file.read, thread_sensitive=False)
         while chunk := await read(CHUNK_BYTES):
             yield chunk
+
+
+def counted_export(kind, response):
+    """Count a finished export and its bytes (spec 0006, AC-9), and return
+    the response. A streamed one counts the length it declares, if any."""
+    from tenancy.observability import metrics
+
+    if response.status_code < 300:
+        size = response.get("Content-Length")
+        if size is None and not response.streaming:
+            size = len(response.content)
+        metrics.EXPORTS.add(1, kind=kind)
+        if size:
+            metrics.EXPORT_BYTES.add(int(size), kind=kind)
+    return response

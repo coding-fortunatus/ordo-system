@@ -1,17 +1,23 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
+  BellRing,
   ChevronsUpDown,
+  Gauge,
   Layers,
   LayoutDashboard,
+  LayoutGrid,
+  LineChart,
   LogOut,
   type LucideIcon,
   Megaphone,
   Moon,
   School,
+  Logs,
   ScrollText,
   Search,
   ShieldCheck,
+  Waypoints,
   Sun,
   UserRound,
 } from "lucide-react";
@@ -67,6 +73,18 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { to: "/console/schools", label: "Schools", icon: School },
       { to: "/console/health", label: "Health", icon: Activity },
       { to: "/console/staff", label: "Find staff", icon: Search },
+    ],
+  },
+  {
+    // Metrics, logs and traces (spec 0006); more pages join as they ship.
+    label: "Observability",
+    items: [
+      { to: "/console/observability", label: "Overview", icon: Gauge },
+      { to: "/console/observability/traces", label: "Traces", icon: Waypoints },
+      { to: "/console/observability/logs", label: "Logs", icon: Logs },
+      { to: "/console/observability/metrics", label: "Metrics", icon: LineChart },
+      { to: "/console/observability/dashboards", label: "Dashboards", icon: LayoutGrid },
+      { to: "/console/observability/alerts", label: "Alerts", icon: BellRing },
     ],
   },
   {

@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 
 from ems import csv_gen
 from ems.branding import load_logo
-from ems.export_files import ZIP, SpooledFileResponse, spool
+from ems.export_files import ZIP, SpooledFileResponse, counted_export, spool
 from ems.models import SeatArrangement, SystemSettings
 from ems.utils import slot_relaxed_course_id
 from ems.views import (
@@ -49,21 +49,21 @@ class TimetableExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return csv_gen.export_department_timetable(request)
+        return counted_export("timetable", csv_gen.export_department_timetable(request))
 
 
 class DistributionExportView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        return csv_gen.export_distribution(request)
+        return counted_export("distribution", csv_gen.export_distribution(request))
 
 
 class ArrangementExportView(APIView):
     permission_classes = [IsAdminUser, requires_feature("seat_allocation")]
 
     def get(self, request):
-        return csv_gen.export_arrangements(request)
+        return counted_export("arrangement", csv_gen.export_arrangements(request))
 
 
 class AttendanceSheetsView(APIView):

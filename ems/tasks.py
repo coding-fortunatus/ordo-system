@@ -1,3 +1,4 @@
+import functools
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ from .models import (
     Hall, TimeTable, SeatArrangement, DistributionItem, Student
 )
 from . import seating_rules
+from tenancy.observability import metrics
 from tenancy.observability.capture import job_failed
 from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
@@ -127,6 +129,32 @@ def _assert_ready(stage, slots=None):
     return report
 
 
+def _counted_run(kind):
+    """Count the run and time it (spec 0006, AC-9). A run is ``succeeded``
+    when its job ends ``success``. An inner task the ``*_all`` tasks run
+    inline with ``.apply()`` is part of the outer run, so not counted."""
+    def wrap(run):
+        @functools.wraps(run)
+        def counted(self, job_id, *args, **kwargs):
+            if self.request.is_eager:
+                return run(self, job_id, *args, **kwargs)
+            metrics.GENERATION_RUNS.add(1, kind=kind, outcome='started')
+            started = time.monotonic()
+            outcome = 'failed'
+            try:
+                result = run(self, job_id, *args, **kwargs)
+                if BackgroundJob.objects.filter(job_id=job_id, status='success').exists():
+                    outcome = 'succeeded'
+                return result
+            finally:
+                metrics.GENERATION_RUNS.add(1, kind=kind, outcome=outcome)
+                metrics.GENERATION_DURATION.record(
+                    (time.monotonic() - started) * 1000, kind=kind, outcome=outcome
+                )
+        return counted
+    return wrap
+
+
 class _Progress:
     """Throttled progress reporting for a long task.
 
@@ -186,6 +214,7 @@ def _distribute_slot(
 
 
 @shared_task(bind=True)
+@_counted_run('timetable')
 def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str):
     """
     Celery task for timetable generation
@@ -417,6 +446,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
 
 
 @shared_task(bind=True)
+@_counted_run('distribution')
 def generate_distribution_task(self, job_id, user_id, date, period):
     """
     Celery task for distribution generation
@@ -512,6 +542,7 @@ def generate_distribution_task(self, job_id, user_id, date, period):
 
 
 @shared_task(bind=True)
+@_counted_run('allocation')
 def generate_allocation_task(self, job_id, user_id, date, period):
     """
     Celery task for seat allocation generation
@@ -726,6 +757,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
 
 
 @shared_task(bind=True)
+@_counted_run('distribution_all')
 def generate_distribution_all_task(self, job_id, user_id):
     """Distribute every (date, period) slot present in the timetable.
     Skips any slot that already has a distribution plan."""
@@ -833,6 +865,7 @@ def generate_distribution_all_task(self, job_id, user_id):
 
 
 @shared_task(bind=True)
+@_counted_run('allocation_all')
 def generate_allocation_all_task(self, job_id, user_id):
     """Allocate every (date, period) slot that has a Distribution but no
     SeatArrangement yet. Re-uses the per-slot allocation task by inline
@@ -966,9 +999,36 @@ def generate_allocation_all_task(self, job_id, user_id):
 def portal_sync_task(self, job_id, run_id):
     """Fetch the school's portal and apply it (spec 0005). Runs in the
     school's schema, like every task queued from a school request."""
+    from .models import SyncRun
     from .portal_sync.runs import execute
 
-    execute(run_id, job_id)
+    try:
+        execute(run_id, job_id)
+    finally:
+        _count_sync(SyncRun.objects.filter(pk=run_id).values("status", "is_preview", "counts").first())
+
+
+def _count_sync(run):
+    """The finished run, and the records it applied by outcome (spec 0006,
+    AC-9). A preview applies nothing, so its counts are not records."""
+    if run is None:
+        return
+    from .models import SyncRun
+
+    failed = run["status"] in (SyncRun.Status.FAILED, SyncRun.Status.RUNNING)
+    metrics.SYNC_RUNS.add(
+        1, outcome='failed' if failed else 'succeeded', preview='yes' if run["is_preview"] else 'no'
+    )
+    if run["is_preview"]:
+        return
+    totals = {}
+    for counts in (run["counts"] or {}).values():
+        for outcome, n in (counts or {}).items():
+            if isinstance(n, int) and not isinstance(n, bool):
+                totals[outcome] = totals.get(outcome, 0) + n
+    for outcome, n in totals.items():
+        if n:
+            metrics.SYNC_RECORDS.add(n, outcome=outcome)
 
 
 @shared_task

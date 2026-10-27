@@ -1,16 +1,24 @@
 """Request side capture: the request id, per school counters (AC-7), and
-unhandled exceptions in views (AC-1)."""
+unhandled exceptions in views (AC-1). Also the request's telemetry context,
+the ``X-Trace-ID`` reference header, the HTTP metrics and daily actives
+(spec 0006)."""
 import re
 import sys
+import time
 import uuid
 
 from django.core.signals import got_request_exception
 from django.dispatch import receiver
+from opentelemetry import trace
+from opentelemetry.trace import format_trace_id
 
-from tenancy.observability import capture, counters
+from tenancy.observability import builtin, capture, context, counters, metrics, otel
 
 REQUEST_ID_HEADER = "X-Request-ID"
+TRACE_ID_HEADER = "X-Trace-ID"
 _REQUEST_ID = re.compile(r"^[0-9a-f]{32}$")
+# Not measured: probes, files, and the telemetry ingest (as for traces).
+UNMEASURED = tuple(otel.EXCLUDED_URLS.split(","))
 
 
 def _request_id(request):
@@ -35,8 +43,30 @@ class RequestObservabilityMiddleware:
 
     def __call__(self, request):
         request.ordo_request_id = _request_id(request)
-        response = self.get_response(request)
+        school_id = _school_id(request)
+        measured = metrics.metrics_enabled() and not request.path.startswith(UNMEASURED)
+        queries = [0] if measured else None
+        tokens = (
+            context.request_school_id.set(school_id),
+            context.request_id.set(request.ordo_request_id),
+            context.request.set(request),
+            builtin.request_queries.set(queries),
+        )
+        started = time.perf_counter()
+        try:
+            response = self.get_response(request)
+            if measured:
+                self._measure(request, response, school_id, started, queries)
+        finally:
+            context.request_school_id.reset(tokens[0])
+            context.request_id.reset(tokens[1])
+            context.request.reset(tokens[2])
+            builtin.request_queries.reset(tokens[3])
         response[REQUEST_ID_HEADER] = request.ordo_request_id
+        # The root span's trace id, kept or not: the reference users quote.
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid and otel.tracing_enabled():
+            response[TRACE_ID_HEADER] = format_trace_id(span_context.trace_id)
         try:
             if capture.enabled() and request.path.startswith("/api/"):
                 counts = {"requests": 1}
@@ -46,6 +76,22 @@ class RequestObservabilityMiddleware:
         except Exception:
             capture.logger.exception("Counting a request failed")
         return response
+
+
+    @staticmethod
+    def _measure(request, response, school_id, started, queries):
+        try:
+            # Query counts come from the DB spans: none without them.
+            counted = queries[0] if otel.instrumented() else None
+            builtin.record_request(request, response, (time.perf_counter() - started) * 1000, counted)
+            if school_id is not None and request.path.startswith("/api/"):
+                user = context.signed_in_user(request)
+                from tenancy.models import PlatformAdmin
+
+                if user is not None and not isinstance(user, PlatformAdmin):
+                    metrics.mark_active(school_id, user.pk)
+        except Exception:
+            capture.logger.exception("Measuring a request failed")
 
 
 def request_context(request):

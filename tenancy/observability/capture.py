@@ -126,6 +126,14 @@ def _alias():
     return settings.OBSERVABILITY_DB_ALIAS
 
 
+def current_trace_id():
+    """The trace of the request or job this runs in (spec 0006), or None."""
+    from opentelemetry import trace
+
+    span_context = trace.get_current_span().get_span_context()
+    return trace.format_trace_id(span_context.trace_id) if span_context.is_valid else None
+
+
 def build_context(**values):
     """The stored context: allowlisted keys only, strings cut short."""
     context = {}
@@ -281,6 +289,7 @@ def record(occ):
             stack=occ.stack,
             context=occ.context,
             release=release,
+            trace_id=current_trace_id(),
         )
 
     tallies = {}

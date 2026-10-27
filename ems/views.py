@@ -20,6 +20,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 
+from tenancy.observability import metrics
+
 from .branding import add_document_branding, load_logo
 from .export_files import XLSX, ZIP, SpooledFileResponse, spool
 from .identifiers import clean_number_text
@@ -231,7 +233,9 @@ def login_view(request):
         user = authenticate(request, username=email, password=password)
         if user is not None:
             login(request, user)
+            metrics.LOGINS.add(1, outcome="succeeded", via="session")
             return redirect("dashboard")
+        metrics.LOGINS.add(1, outcome="failed", via="session")
         messages.error(request, "Invalid email or password.")
         return redirect("dashboard")
 

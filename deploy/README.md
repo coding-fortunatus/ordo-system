@@ -9,9 +9,11 @@ This runbook covers bringing up `deploy/compose.prod.yml` (spec 0003 slice 12), 
 | `traefik` | The only thing with open ports (80, 443). Port 80 redirects to 443. One wildcard certificate for `ordo.app` and `*.ordo.app` through Cloudflare DNS. Routes `/api`, `/ws`, `/media` to `api`, everything else to `dashboard` (`traefik/dynamic.yml`). |
 | `postgres` | Postgres 16 with `max_locks_per_transaction=256`, data on the `pgdata` volume. |
 | `redis` | Celery broker and Channels layer. |
+| `redis-obs` | Telemetry buffer for metrics, logs and traces (spec 0006). No persistence, capped at `OBS_REDIS_MAXMEMORY` (256 MB). |
 | `migrate` | One shot. Shared migrations, then every live school, under a lock. Everything below waits for it to exit 0. |
 | `api` | Django on Daphne (REST and WebSockets). |
 | `worker`, `beat` | Celery. |
+| `worker-observability` | Celery on the `observability` queue, one task at a time: moves telemetry from `redis-obs` into Postgres every 10 seconds, keeps the daily partitions, rolls up metrics, checks alert rules, and samples the host, disk and database. |
 | `backup` | Whole database backup to R2 when it starts, then daily at `BACKUP_TIME_UTC`, with retries. Never deletes a backup. |
 | `dashboard` | The school dashboard and platform console. |
 
@@ -73,7 +75,7 @@ export ORDO_RELEASE=$(git rev-parse --short HEAD)
 $C up -d --build
 ```
 
-If `migrate` fails, `api`, `worker`, `beat` and `backup` stay on the previous release. Read `$C logs migrate`, fix forward, and deploy again.
+If `migrate` fails, `api`, `worker`, `worker-observability`, `beat` and `backup` stay on the previous release. Read `$C logs migrate`, fix forward, and deploy again.
 
 ## Error observability
 
@@ -83,6 +85,32 @@ Ordo records server errors, failed jobs and tasks, logged errors, browser errors
 - **Health needs beat and Redis.** `observe_health` runs every 5 minutes on the worker, from `beat`, and reads counters from Redis. If the Health page says the status is out of date, check `$C ps worker beat redis`.
 - **Off switch.** `OBSERVABILITY_ENABLED=False` in `.env.prod` turns off all capture, counting and alert emails.
 - **Retention.** Stored occurrences are kept 30 days, hourly counts 90 days, and resolved or ignored groups 90 days after they were last seen. Purging a school removes all of its error data.
+- The other settings, all optional, are listed at the end of `.env.prod.example`.
+
+## Metrics, logs and traces
+
+Ordo records its own traces (the timed steps of each request and job), log lines and metrics per school, and shows them under **Observability** in the console (spec 0006). Nothing here leaves the server: it all lands in the same Postgres, in `obs_*` tables split into one partition per day.
+
+- **How it flows.** Every Django service hands its telemetry to `redis-obs`. `worker-observability` moves it into Postgres every 10 seconds. If `redis-obs` is down or full, the app keeps working and the telemetry for those minutes is dropped and counted; the console charts shade those minutes.
+- **First rollout.** We recommend you start with the three signals off. Add these to `.env.prod` before the first deploy that brings up `redis-obs`, since they default to on:
+
+  ```sh
+  OBSERVABILITY_TRACING_ENABLED=False
+  OBSERVABILITY_LOGS_ENABLED=False
+  OBSERVABILITY_METRICS_ENABLED=False
+  ```
+
+  Deploy, check `$C ps redis-obs worker-observability` shows both running, then set `OBSERVABILITY_TRACING_ENABLED=True` (with the default `OBS_TRACE_SAMPLE_PERCENT=10`) and run `$C up -d` again. Watch the table sizes and `redis-obs` memory for a week, then turn on logs and metrics the same way:
+
+  ```sh
+  $C exec postgres psql -U ordo -d ordo -c "SELECT p.relname, pg_size_pretty(SUM(pg_total_relation_size(t.relid))) FROM pg_class p, pg_partition_tree(p.oid) t WHERE p.relname LIKE 'obs\_%' AND p.relkind = 'p' GROUP BY 1"
+  $C exec redis-obs redis-cli info memory | grep used_memory_human
+  ```
+
+- **Is the flush keeping up?** `$C exec redis-obs redis-cli llen obs:buf:segment` should stay near 0, and `$C exec redis-obs redis-cli get obs:flush:last_ok` should move every 10 seconds. If it falls behind, check `$C logs worker-observability`. A stalled flush also sends the Owners an alert email.
+- **Disk.** The disk metric reads `/` and the Postgres volume (mounted read only in `worker-observability` at `/mnt/pgdata`). Uploaded logos live on Cloudinary and no media volume is mounted, so the media size chart stays empty in this setup.
+- **Retention.** Traces are kept 3 days, logs and minute metrics 7 days, hourly metrics 90 days. Old days are removed by dropping whole partitions every night at 00:15 UTC. If the database disk fills faster than you'd like, lower `OBS_TRACE_KEEP_DAYS` and `OBS_LOG_KEEP_DAYS`, or `OBS_TRACE_SAMPLE_PERCENT`.
+- **Off switches.** Each `OBSERVABILITY_*_ENABLED` switch turns its signal off without a code change; `OBSERVABILITY_ENABLED=False` still turns off everything. Purging a school removes all of its telemetry too.
 - The other settings, all optional, are listed at the end of `.env.prod.example`.
 
 ## Backups

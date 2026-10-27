@@ -10,6 +10,15 @@
 # Only Traefik publishes ports. Web, worker, beat and backup start only after
 # the one shot migrate step exits 0, so no school runs on an old schema
 # (AC-8). See deploy/README.md for the first boot and the restore drill.
+#
+# Metrics, logs and traces (spec 0006): every Django service buffers its
+# telemetry in redis-obs, its own capped Redis, so a burst can never fill the
+# Celery and Channels one. worker-observability moves it into Postgres.
+
+# Merged into each Django service's environment (a service's own
+# `environment` replaces the anchor's, so each one merges this in).
+x-obs-env: &obs-env
+  OBSERVABILITY_BUFFER_REDIS_URL: redis://redis-obs:6379/0
 
 x-django: &django
   build:
@@ -26,6 +35,8 @@ x-django: &django
     migrate:
       condition: service_completed_successfully
     redis:
+      condition: service_healthy
+    redis-obs:
       condition: service_healthy
 
 services:
@@ -101,11 +112,36 @@ services:
       timeout: 5s
       retries: 10
 
+  # Telemetry buffers only, nothing durable: no persistence, and a memory
+  # cap with noeviction, so a full buffer refuses new items (the app drops
+  # and counts them) instead of evicting what's waiting to be flushed.
+  redis-obs:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - ${OBS_REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   migrate:
     <<: *django
     restart: "no"
     environment:
+      <<: *obs-env
       SERVICE_TYPE: migrate
+      # No tracing or metrics of its own.
+      OBS_PROCESS_ROLE: other
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +149,9 @@ services:
   api:
     <<: *django
     environment:
+      <<: *obs-env
       SERVICE_TYPE: web
+      OBS_PROCESS_ROLE: web
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
       interval: 15s
@@ -124,12 +162,30 @@ services:
   worker:
     <<: *django
     environment:
+      <<: *obs-env
       SERVICE_TYPE: worker
+      OBS_PROCESS_ROLE: worker
+
+  # The observability queue only, one task at a time: the 10 second flush,
+  # partitions, rollups, alert rules and the host, database and media
+  # samplers. The Postgres volume is mounted read only so the disk metric
+  # sees the disk the database fills.
+  worker-observability:
+    <<: *django
+    environment:
+      <<: *obs-env
+      SERVICE_TYPE: worker-observability
+      OBS_PROCESS_ROLE: worker-observability
+      OBS_DISK_PATHS: /,/mnt/pgdata
+    volumes:
+      - pgdata:/mnt/pgdata:ro
 
   beat:
     <<: *django
     environment:
+      <<: *obs-env
       SERVICE_TYPE: beat
+      OBS_PROCESS_ROLE: beat
 
   # Whole database backup when it starts, then daily (spec 0003, child 0007).
   # Shows unhealthy once the last verified backup is more than 26 hours old.
@@ -137,7 +193,10 @@ services:
   backup:
     <<: *django
     environment:
+      <<: *obs-env
       SERVICE_TYPE: backup
+      # No tracing or metrics of its own.
+      OBS_PROCESS_ROLE: other
     healthcheck:
       test: ["CMD-SHELL", "test -n \"$$(find \"$${BACKUP_HEARTBEAT_FILE:-/tmp/ordo-backup-ok}\" -mmin -1560 2>/dev/null)\""]
       interval: 5m

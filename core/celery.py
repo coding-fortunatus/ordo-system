@@ -71,6 +71,67 @@ app.conf.beat_schedule = {
         "task": "tenancy.observability.tasks.prune_observability",
         "schedule": crontab(hour=3, minute=30),
     },
+    # Metrics, logs and traces (spec 0006), on the observability queue.
+    "flush-telemetry": {
+        "task": "tenancy.observability.tasks.flush_telemetry",
+        "schedule": 10,
+        # A flush nobody picked up in time is pointless: the next one is due.
+        "options": {"expires": 30},
+    },
+    "maintain-partitions": {
+        "task": "tenancy.observability.tasks.maintain_partitions",
+        "schedule": crontab(hour=0, minute=15),
+    },
+    "rollup-metrics": {
+        "task": "tenancy.observability.tasks.rollup_metrics",
+        "schedule": crontab(minute=5),
+    },
+    "observe-queues": {
+        "task": "tenancy.observability.tasks.observe_queues",
+        "schedule": 60,
+        "options": {"expires": 50},
+    },
+    "observe-host": {
+        "task": "tenancy.observability.tasks.observe_host",
+        "schedule": 60,
+        "options": {"expires": 50},
+    },
+    "observe-db-size": {
+        "task": "tenancy.observability.tasks.observe_db_size",
+        "schedule": crontab(minute=0),
+    },
+    "observe-media": {
+        "task": "tenancy.observability.tasks.observe_media",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    "record-daily-active": {
+        "task": "tenancy.observability.tasks.record_daily_active",
+        "schedule": crontab(hour=0, minute=10),
+    },
+    "evaluate-alert-rules": {
+        "task": "tenancy.observability.tasks.evaluate_alert_rules",
+        "schedule": 60,
+        "options": {"expires": 50},
+    },
+}
+
+# Telemetry work has its own queue and, in production, its own worker
+# (SERVICE_TYPE=worker-observability), so a flush never waits behind a
+# timetable run and a telemetry backlog never delays one.
+OBSERVABILITY_QUEUE = "observability"
+app.conf.task_routes = {
+    f"tenancy.observability.tasks.{name}": {"queue": OBSERVABILITY_QUEUE}
+    for name in (
+        "flush_telemetry",
+        "maintain_partitions",
+        "rollup_metrics",
+        "observe_queues",
+        "observe_host",
+        "observe_db_size",
+        "observe_media",
+        "record_daily_active",
+        "evaluate_alert_rules",
+    )
 }
 
 

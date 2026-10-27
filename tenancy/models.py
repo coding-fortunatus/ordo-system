@@ -11,8 +11,10 @@ from django.contrib.auth.hashers import (
     is_password_usable,
     make_password,
 )
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
+from django.db.models.functions import Coalesce
 from django_tenants.models import DomainMixin, TenantMixin
 from django_tenants.utils import get_public_schema_name
 
@@ -459,11 +461,14 @@ class ErrorEvent(models.Model):
     stack = models.JSONField(default=list)
     context = models.JSONField(default=dict)
     release = models.CharField(max_length=64, blank=True, default="")
+    # The request's or job's trace (spec 0006); null when tracing was off.
+    trace_id = models.CharField(max_length=32, null=True, blank=True)
 
     class Meta:
         indexes = [
             models.Index(fields=["group", "-occurred_at"]),
             models.Index(fields=["occurred_at"]),
+            models.Index(fields=["trace_id"], name="error_event_trace"),
         ]
 
 
@@ -519,3 +524,285 @@ class SchoolHealth(models.Model):
                 fields=["school"], name="school_health_once", nulls_distinct=False
             )
         ]
+
+
+# Traces (spec 0006). Daily partitioned tables made by raw SQL migrations:
+# Django 5.0 can declare neither a partitioned table nor its composite key,
+# so these are unmanaged, and the id field stands in as the ORM's key while
+# the real one includes the partition column. Only the flush writes them.
+
+
+class ObsSegment(models.Model):
+    """The spans of one request, job or WebSocket message in one process."""
+
+    root_span_id = models.CharField(max_length=16, primary_key=True)
+    trace_id = models.CharField(max_length=32)
+    started_at = models.DateTimeField()
+    school = models.ForeignKey(
+        School, on_delete=models.DO_NOTHING, null=True, db_constraint=False, related_name="+"
+    )
+    kind = models.CharField(max_length=8)
+    root_name = models.CharField(max_length=255)
+    route = models.CharField(max_length=255, blank=True)
+    method = models.CharField(max_length=8, blank=True)
+    status_code = models.SmallIntegerField(null=True)
+    duration_ms = models.IntegerField()
+    is_error = models.BooleanField()
+    is_slow = models.BooleanField()
+    span_count = models.IntegerField()
+    truncated = models.BooleanField()
+    user_id = models.IntegerField(null=True)
+    request_id = models.CharField(max_length=32, blank=True)
+    release = models.CharField(max_length=64)
+    process_role = models.CharField(max_length=24)
+
+    class Meta:
+        managed = False
+        db_table = "obs_segment"
+
+
+class ObsSpan(models.Model):
+    span_id = models.CharField(max_length=16, primary_key=True)
+    trace_id = models.CharField(max_length=32)
+    parent_span_id = models.CharField(max_length=16, null=True)
+    root_span_id = models.CharField(max_length=16)
+    started_at = models.DateTimeField()
+    school = models.ForeignKey(
+        School, on_delete=models.DO_NOTHING, null=True, db_constraint=False, related_name="+"
+    )
+    name = models.CharField(max_length=255)
+    kind = models.CharField(max_length=8)
+    duration_ms = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=5)
+    attributes = models.JSONField(default=dict)
+
+    class Meta:
+        managed = False
+        db_table = "obs_span"
+
+
+class ObsLog(models.Model):
+    """One stored log line with its trace (spec 0006). Not sampled: a line
+    keeps its trace id even when that trace wasn't kept."""
+
+    id = models.BigIntegerField(primary_key=True)
+    logged_at = models.DateTimeField()
+    school = models.ForeignKey(
+        School, on_delete=models.DO_NOTHING, null=True, db_constraint=False, related_name="+"
+    )
+    level = models.SmallIntegerField()
+    logger = models.CharField(max_length=100)
+    message = models.TextField()
+    trace_id = models.CharField(max_length=32, null=True)
+    span_id = models.CharField(max_length=16, null=True)
+    request_id = models.CharField(max_length=32, blank=True)
+    user_id = models.IntegerField(null=True)
+    attributes = models.JSONField(default=dict)
+
+    class Meta:
+        managed = False
+        db_table = "obs_log"
+
+
+# Metrics (spec 0006, child 0002). Series and rollups are normal tables; the
+# minute points are a daily partitioned table like the traces.
+
+
+class MetricSeries(models.Model):
+    """One metric with one school and one set of label values. The metric's
+    definition is code (``observability.metrics``), not a row."""
+
+    id = models.BigAutoField(primary_key=True)
+    metric_name = models.CharField(max_length=100)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, related_name="+")
+    labels = models.JSONField(default=dict)
+    # sha1 of the canonical label JSON.
+    labels_hash = models.CharField(max_length=40)
+    last_seen = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["metric_name", "school", "labels_hash"],
+                name="metric_series_once",
+                nulls_distinct=False,
+            )
+        ]
+
+
+class ObsMetricPoint(models.Model):
+    """One series' values in one UTC minute."""
+
+    series_id = models.BigIntegerField(primary_key=True)
+    minute = models.DateTimeField()
+    count = models.BigIntegerField()
+    sum = models.FloatField()
+    min = models.FloatField(null=True)
+    max = models.FloatField(null=True)
+    last = models.FloatField(null=True)
+    buckets = ArrayField(models.IntegerField(), null=True)
+
+    class Meta:
+        managed = False
+        db_table = "obs_metric_point"
+
+
+class MetricRollup(models.Model):
+    """One series' values in one UTC hour, kept ``OBS_ROLLUP_KEEP_DAYS``."""
+
+    id = models.BigAutoField(primary_key=True)
+    series = models.ForeignKey(MetricSeries, on_delete=models.CASCADE, related_name="rollups")
+    hour = models.DateTimeField()
+    count = models.BigIntegerField()
+    sum = models.FloatField()
+    min = models.FloatField(null=True)
+    max = models.FloatField(null=True)
+    last = models.FloatField(null=True)
+    buckets = ArrayField(models.IntegerField(), null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["series", "hour"], name="metric_rollup_once")
+        ]
+
+
+class MetricWatermark(models.Model):
+    """How far a metric store is complete. ``metrics``: the last minute the
+    flush has fully written, the line between 0 and missing (AC-11).
+    ``rollups``: the end of the last hour rolled up."""
+
+    name = models.CharField(max_length=32, primary_key=True)
+    minute = models.DateTimeField()
+
+
+# Dashboards and alert rules (spec 0006, children 0004 and 0005). Metric
+# names, aggregations, labels and filters are checked against the registry
+# when saved (``observability.query.validate``), not by the database.
+
+
+class Dashboard(models.Model):
+    """A shared set of saved explorer charts. Any admin may create and edit
+    one; only an Owner may delete it."""
+
+    name = models.CharField(max_length=100)
+    created_by = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    updated_by = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+
+class Chart(models.Model):
+    """One saved explorer query. Charts always use the dashboard page's time
+    range; ``school`` null follows the page's school picker."""
+
+    dashboard = models.ForeignKey(Dashboard, on_delete=models.CASCADE, related_name="charts")
+    title = models.CharField(max_length=100)
+    metric_name = models.CharField(max_length=100)
+    aggregation = models.CharField(max_length=8)
+    group_by = models.CharField(max_length=50, blank=True, default="")
+    filters = models.JSONField(default=dict, blank=True)
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, related_name="+")
+    position = models.SmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "id"]
+
+
+class AlertRule(models.Model):
+    """A threshold on a metric, per school or for the platform total."""
+
+    class Aggregation(models.TextChoices):
+        RATE = "rate", "Rate"
+        SUM = "sum", "Sum"
+        AVG = "avg", "Average"
+        P95 = "p95", "p95"
+        LAST = "last", "Last"
+        MAX = "max", "Max"
+
+    class Comparison(models.TextChoices):
+        GT = "gt", "Above"
+        LT = "lt", "Below"
+
+    class Scope(models.TextChoices):
+        PER_SCHOOL = "per_school", "Each school"
+        PLATFORM = "platform", "Platform total"
+
+    name = models.CharField(max_length=100)
+    metric_name = models.CharField(max_length=100)
+    aggregation = models.CharField(max_length=4, choices=Aggregation.choices)
+    filters = models.JSONField(default=dict, blank=True)
+    comparison = models.CharField(max_length=2, choices=Comparison.choices)
+    threshold = models.FloatField()
+    for_minutes = models.SmallIntegerField()
+    scope = models.CharField(max_length=10, choices=Scope.choices)
+    enabled = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+
+class AlertState(models.Model):
+    """A rule's latest evaluation for one target: a school, or the platform
+    (``school`` null). Rebuilt by the next evaluation after a rule change."""
+
+    class State(models.TextChoices):
+        OK = "ok", "OK"
+        FIRING = "firing", "Firing"
+        NO_DATA = "no_data", "No data"
+
+    rule = models.ForeignKey(AlertRule, on_delete=models.CASCADE, related_name="states")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, related_name="+")
+    state = models.CharField(max_length=8, choices=State.choices)
+    # Evaluations in a row whose latest minute was clear, while an incident
+    # is open: at 5 it resolves.
+    clear_streak = models.SmallIntegerField(default=0)
+    last_value = models.FloatField(null=True)
+    evaluated_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rule", "school"], name="alert_state_once", nulls_distinct=False
+            )
+        ]
+
+
+class AlertIncident(models.Model):
+    """One stretch of a rule holding for a target, from opened to resolved."""
+
+    rule = models.ForeignKey(AlertRule, on_delete=models.CASCADE, related_name="incidents")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, related_name="+")
+    started_at = models.DateTimeField()
+    resolved_at = models.DateTimeField(null=True)
+    # The worst value in the rule's direction while open.
+    peak_value = models.FloatField()
+    last_value = models.FloatField()
+    notified_at = models.DateTimeField(null=True)
+    resolved_notified_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            # Stops a duplicate if two evaluations ever overlap. COALESCE
+            # makes the platform (null) one target: Django 5.0 writes
+            # NULLS NOT DISTINCT after the WHERE of a partial index, which
+            # Postgres refuses.
+            models.UniqueConstraint(
+                "rule",
+                Coalesce("school", models.Value(0)),
+                condition=models.Q(resolved_at__isnull=True),
+                name="alert_incident_one_open",
+            )
+        ]
+        indexes = [models.Index(fields=["-started_at"])]

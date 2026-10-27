@@ -238,14 +238,58 @@ OBS_4XX_SPIKE_FACTOR = env.float("OBS_4XX_SPIKE_FACTOR", default=3)
 # Browser error ingest limits, per minute (AC-5).
 OBS_JS_IP_PER_MIN = env.int("OBS_JS_IP_PER_MIN", default=20)
 OBS_JS_SCHOOL_PER_MIN = env.int("OBS_JS_SCHOOL_PER_MIN", default=200)
+# Web Vitals ingest limits, per minute (spec 0006, AC-26).
+OBS_VITALS_IP_PER_MIN = env.int("OBS_VITALS_IP_PER_MIN", default=60)
+OBS_VITALS_SCHOOL_PER_MIN = env.int("OBS_VITALS_SCHOOL_PER_MIN", default=600)
 # Retention, in days (AC-20).
 OBS_EVENT_KEEP_DAYS = env.int("OBS_EVENT_KEEP_DAYS", default=30)
 OBS_BUCKET_KEEP_DAYS = env.int("OBS_BUCKET_KEEP_DAYS", default=90)
 OBS_GROUP_KEEP_DAYS = env.int("OBS_GROUP_KEEP_DAYS", default=90)
 
+# Metrics, logs and traces (spec 0006). Each switch turns one signal off
+# without a code change; OBSERVABILITY_ENABLED=False still turns off all.
+OBSERVABILITY_TRACING_ENABLED = env.bool("OBSERVABILITY_TRACING_ENABLED", default=True)
+OBSERVABILITY_LOGS_ENABLED = env.bool("OBSERVABILITY_LOGS_ENABLED", default=True)
+OBSERVABILITY_METRICS_ENABLED = env.bool("OBSERVABILITY_METRICS_ENABLED", default=True)
+# The telemetry buffers. Production points it at its own capped Redis
+# (redis-obs), so a full buffer can never fill the Celery and Channels one.
+OBSERVABILITY_BUFFER_REDIS_URL = env(
+    "OBSERVABILITY_BUFFER_REDIS_URL", default=OBSERVABILITY_REDIS_URL
+)
+# web, worker, worker-observability or beat, set per service. Unset means
+# "other" (management commands, shells), which sets up no tracing.
+OBS_PROCESS_ROLE = env("OBS_PROCESS_ROLE", default="other")
+# Share of normal (not error, not slow) traces kept, in percent.
+OBS_TRACE_SAMPLE_PERCENT = env.int("OBS_TRACE_SAMPLE_PERCENT", default=10)
+# Slow thresholds in milliseconds; a slow segment is always kept.
+OBS_SLOW_HTTP_MS = env.int("OBS_SLOW_HTTP_MS", default=1000)
+OBS_SLOW_JOB_MS = env.int("OBS_SLOW_JOB_MS", default=30000)
+OBS_SLOW_TASK_OVERRIDES = {
+    "ems.tasks.generate_timetable_task": 600000,
+    "ems.tasks.generate_distribution_task": 600000,
+    "ems.tasks.generate_allocation_task": 600000,
+    "ems.tasks.generate_distribution_all_task": 600000,
+    "ems.tasks.generate_allocation_all_task": 600000,
+    "ems.tasks.portal_sync_task": 300000,
+}
+# Retention, in days.
+OBS_TRACE_KEEP_DAYS = env.int("OBS_TRACE_KEEP_DAYS", default=3)
+OBS_LOG_KEEP_DAYS = env.int("OBS_LOG_KEEP_DAYS", default=7)
+OBS_POINT_KEEP_DAYS = env.int("OBS_POINT_KEEP_DAYS", default=7)
+OBS_ROLLUP_KEEP_DAYS = env.int("OBS_ROLLUP_KEEP_DAYS", default=90)
+# Items per buffer list in the telemetry Redis before new ones are dropped.
+OBS_BUFFER_MAX = env.int("OBS_BUFFER_MAX", default=50000)
+# The lowest level stored from Ordo's own loggers (spec 0006, logs).
+OBS_LOG_LEVEL = env("OBS_LOG_LEVEL", default="INFO")
+# Paths sampled for disk use by observe_host (spec 0006, metrics). Production
+# mounts the Postgres and media volumes read only in worker-observability.
+OBS_DISK_PATHS = env.list("OBS_DISK_PATHS", default=["/"])
+
 # Stdout looks as it did before; ERROR records on Ordo's own loggers are also
 # captured (AC-4). ``ordo.observability`` reports capture failures and is never
-# captured itself.
+# captured itself. ``telemetry`` stores log lines with their trace (spec 0006):
+# Ordo's loggers from OBS_LOG_LEVEL, Django's request log and Celery at ERROR,
+# whose lower levels are mostly every 4xx and every task start.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -255,12 +299,22 @@ LOGGING = {
             "class": "tenancy.observability.handler.ObservabilityLogHandler",
             "level": "ERROR",
         },
+        "telemetry": {
+            "class": "tenancy.observability.handler.TelemetryLogHandler",
+            "level": OBS_LOG_LEVEL,
+        },
+        "telemetry_errors": {
+            "class": "tenancy.observability.handler.TelemetryLogHandler",
+            "level": "ERROR",
+        },
     },
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
-        "ems": {"handlers": ["observability"], "level": "INFO"},
-        "tenancy": {"handlers": ["observability"], "level": "INFO"},
-        "core": {"handlers": ["observability"], "level": "INFO"},
+        "ems": {"handlers": ["observability", "telemetry"], "level": "INFO"},
+        "tenancy": {"handlers": ["observability", "telemetry"], "level": "INFO"},
+        "core": {"handlers": ["observability", "telemetry"], "level": "INFO"},
+        "django.request": {"handlers": ["telemetry_errors"], "level": "INFO", "propagate": True},
+        "celery": {"handlers": ["telemetry_errors"], "level": "INFO", "propagate": True},
         "ordo.observability": {
             "handlers": ["console"],
             "level": "INFO",
@@ -413,7 +467,12 @@ CORS_ALLOWED_ORIGINS = env.list(
     default=["http://localhost:3000"],
 )
 CORS_ALLOW_CREDENTIALS = False
-CORS_EXPOSE_HEADERS = ["Content-Disposition", "X-Request-ID"]
+# X-Trace-ID carries the reference code shown on error screens, and
+# traceparent lets a browser call share its trace with the server (spec 0006).
+CORS_EXPOSE_HEADERS = ["Content-Disposition", "X-Request-ID", "X-Trace-ID"]
+from corsheaders.defaults import default_headers as _cors_default_headers  # noqa: E402
+
+CORS_ALLOW_HEADERS = (*_cors_default_headers, "traceparent")
 
 # Channels — falls back to REDIS_URL if CHANNEL_REDIS_URL isn't set, so
 # managed-Redis providers that hand you one URL just work. Channel keys
@@ -456,3 +515,8 @@ if TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
     OBSERVABILITY_DB_ALIAS = "default"
     OBSERVABILITY_REDIS_URL = "memory://"
+    # Telemetry tests flush by hand; nothing is traced unless a test sets it up,
+    # and log lines are only captured where a test turns them on (and drains
+    # them itself, so no background thread pushes behind its back).
+    OBSERVABILITY_BUFFER_REDIS_URL = "memory://"
+    OBSERVABILITY_LOGS_ENABLED = False

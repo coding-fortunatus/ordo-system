@@ -58,7 +58,22 @@ export function wsUrl(path: string): string {
   return (apiOrigin || window.location.origin).replace(/^http/, "ws") + path;
 }
 
+function randomHex(bytes: number): string {
+  const values = crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(values, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * A fresh W3C trace context for one API call (spec 0006, AC-26). Django
+ * continues it, so the server's trace id is this one. The sampled flag is
+ * ignored server side; no browser spans are stored.
+ */
+export function traceparent(): string {
+  return `00-${randomHex(16)}-${randomHex(8)}-01`;
+}
+
 api.interceptors.request.use((config) => {
+  config.headers.traceparent ??= traceparent();
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Token ${token}`;
@@ -113,6 +128,7 @@ export const platformApi = axios.create({
 });
 
 platformApi.interceptors.request.use((config) => {
+  config.headers.traceparent ??= traceparent();
   const token = getPlatformToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -135,14 +151,30 @@ platformApi.interceptors.response.use(
 export interface ApiErrorEnvelope {
   detail: string;
   errors?: Record<string, string[]>;
+  /** For a server error: what the user quotes to Ordo support. */
+  reference?: string;
+}
+
+/**
+ * The first 8 characters of a failed response's trace id (spec 0006), for a
+ * server error (5xx). None when no response arrived, so nothing to look up.
+ */
+export function errorReference(error: unknown): string | undefined {
+  if (!(error instanceof AxiosError) || !error.response || error.response.status < 500) return undefined;
+  const traceId: unknown = error.response.headers?.["x-trace-id"];
+  return typeof traceId === "string" && /^[0-9a-f]{32}$/.test(traceId) ? traceId.slice(0, 8) : undefined;
 }
 
 export function extractErrorEnvelope(error: unknown): ApiErrorEnvelope {
+  const reference = errorReference(error);
+  // The reference rides on the message, so every toast and inline error
+  // that shows ``detail`` shows it too.
+  const withReference = (detail: string) => (reference ? `${detail} Reference: ${reference}` : detail);
   if (error instanceof AxiosError && error.response?.data) {
     const data = error.response.data as Partial<ApiErrorEnvelope>;
     if (data.detail) {
-      return { detail: data.detail, errors: data.errors };
+      return { detail: withReference(data.detail), errors: data.errors, reference };
     }
   }
-  return { detail: "Something went wrong. Please try again." };
+  return { detail: withReference("Something went wrong. Please try again."), reference };
 }

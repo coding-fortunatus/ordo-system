@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from ems import directory, directory_export, pdf_gen
 from ems.api.views.system import _get_or_create_settings
+from ems.export_files import counted_export
 
 _DOC_CHOICES = {"hall", "visa"}
 _SCOPE_CHOICES = {"slot", "week", "duration"}
@@ -94,4 +95,4 @@ class DirectoryExportView(APIView):
         filename = f"{label}-{scope}.{extension}"
         response = HttpResponse(content, content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+        return counted_export("directory", response)

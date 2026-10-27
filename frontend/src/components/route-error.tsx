@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { type ErrorComponentProps, useRouter } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { errorReference } from "@/lib/api";
 import { reportError } from "@/lib/error-reporter";
 
 /**
@@ -11,6 +12,8 @@ import { reportError } from "@/lib/error-reporter";
  */
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
+  // Only when the server answered with an error: there's a trace to find.
+  const reference = errorReference(error);
 
   useEffect(() => {
     reportError(error);
@@ -29,6 +32,11 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
           The error has been sent to the Ordo team. Try again, and if it keeps happening, let us
           know what you were doing.
         </p>
+        {reference && (
+          <p className="mt-4 text-[13px] text-muted-foreground">
+            Reference: <span className="select-all font-mono text-foreground">{reference}</span>
+          </p>
+        )}
         <div className="mt-8 flex flex-wrap justify-center gap-2">
           <Button
             variant="outline"

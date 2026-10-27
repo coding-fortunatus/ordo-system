@@ -135,6 +135,11 @@ export interface ErrorEvent {
   stack: StackFrame[];
   context: ErrorContext;
   release: string;
+  /** The request's or job's trace (spec 0006); null when tracing was off. */
+  trace_id: string | null;
+  /** Whether the trace and its logs are still stored, so the links open. */
+  trace_kept: boolean;
+  logs_kept: boolean;
 }
 
 /** A school's id, or "platform". */
