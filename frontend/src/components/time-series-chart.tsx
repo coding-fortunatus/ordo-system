@@ -1,6 +1,13 @@
-import { useEffect, useRef } from "react";
-import uPlot from "uplot";
-import "uplot/dist/uPlot.min.css";
+import { useMemo } from "react";
+import { CartesianGrid, Line, LineChart, ReferenceArea, XAxis, YAxis } from "recharts";
+
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
 /** One line: ``[epoch seconds, value]`` pairs; null is missing (drawn as a gap). */
 export interface ChartSeries {
@@ -11,51 +18,38 @@ export interface ChartSeries {
 // The design system's chart tokens are one hue in five steps, so series are
 // told apart by the two steps that read in both themes plus a dash pattern,
 // and always by the legend.
-const STROKES = ["--primary", "--chart-2"];
-const DASHES: number[][] = [[], [], [6, 4], [6, 4], [2, 3], [2, 3], [10, 3, 2, 3], [10, 3, 2, 3]];
+const STROKES = ["var(--primary)", "var(--chart-2)"];
+const DASHES = ["", "", "6 4", "6 4", "2 3", "2 3", "10 3 2 3", "10 3 2 3"];
 const OTHER = "other";
 const NO_DROPS: number[] = [];
 
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "currentColor";
-}
-
 function style(index: number, label: string) {
-  if (label === OTHER) return { stroke: token("--muted-foreground"), dash: [2, 3] };
-  return { stroke: token(STROKES[index % STROKES.length]), dash: DASHES[index % DASHES.length] };
+  if (label === OTHER) return { stroke: "var(--muted-foreground)", dash: "2 3" };
+  return { stroke: STROKES[index % STROKES.length], dash: DASHES[index % DASHES.length] };
 }
 
-function aligned(series: ChartSeries[]): uPlot.AlignedData {
-  const xs = series[0]?.points.map(([t]) => t) ?? [];
-  return [xs, ...series.map((s) => s.points.map(([, v]) => v))] as uPlot.AlignedData;
+/** A short stretch of the series' line, dash and all, for the legend and tooltip. */
+function Swatch({ stroke, dash }: { stroke: string; dash: string }) {
+  return (
+    <svg aria-hidden width={16} height={8} className="shrink-0">
+      <line x1={0} x2={16} y1={4} y2={4} stroke={stroke} strokeWidth={2} strokeDasharray={dash} />
+    </svg>
+  );
 }
 
-/** Shades each dropped bucket ``[t, t + step)`` behind the lines. */
-function dropShading(dropped: number[], step: number): uPlot.Plugin {
-  return {
-    hooks: {
-      drawClear: (u) => {
-        if (!dropped.length) return;
-        const { ctx, bbox } = u;
-        ctx.save();
-        ctx.fillStyle = token("--muted");
-        for (const t of dropped) {
-          const left = Math.max(u.valToPos(t, "x", true), bbox.left);
-          const right = Math.min(u.valToPos(t + step, "x", true), bbox.left + bbox.width);
-          if (right > left) ctx.fillRect(left, bbox.top, right - left, bbox.height);
-        }
-        ctx.restore();
-      },
-    },
-  };
+function tickTime(seconds: number, span: number) {
+  const date = new Date(seconds * 1000);
+  return span > 2 * 86400
+    ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 /**
- * Lines over time with uPlot: missing points are gaps, zeros sit on the
- * axis, and hovering shows every series' value in the legend. Buckets in
- * which telemetry was dropped are shaded (spec 0006, AC-4). Colors come
- * from the theme tokens and follow a theme change. The same numbers sit in
- * a visually hidden table.
+ * Lines over time on shadcn charts: missing points are gaps, zeros sit on
+ * the axis, and hovering shows every series' value in the tooltip. Buckets
+ * in which telemetry was dropped are shaded (spec 0006, AC-4). Colors are
+ * theme tokens, so they follow a theme change. The same numbers sit in a
+ * visually hidden table.
  */
 export function TimeSeriesChart({
   series,
@@ -75,63 +69,26 @@ export function TimeSeriesChart({
   /** Bucket width in seconds. */
   step?: number;
 }) {
-  const box = useRef<HTMLDivElement>(null);
-  const formatRef = useRef(format);
-  formatRef.current = format;
   const xs = series[0]?.points.map(([t]) => t) ?? [];
   const shown = dropped.filter((t) => xs.length > 0 && t >= xs[0] && t <= xs[xs.length - 1]);
+  const span = xs.length ? xs[xs.length - 1] - xs[0] : 0;
 
-  useEffect(() => {
-    const el = box.current;
-    if (!el || !series.length) return;
-    let plot: uPlot | null = null;
-
-    const draw = () => {
-      plot?.destroy();
-      const axis = { stroke: token("--muted-foreground"), grid: { stroke: token("--border"), width: 1 }, ticks: { show: false } };
-      const options: uPlot.Options = {
-        width: el.clientWidth || 600,
-        height,
-        cursor: { y: false, points: { size: 8 } },
-        plugins: [dropShading(dropped, step)],
-        legend: { live: true },
-        scales: { y: { range: (_u, min, max) => [Math.min(0, min ?? 0), max > 0 ? max * 1.1 : 1] } },
-        axes: [
-          { ...axis, font: "10px ui-monospace, monospace" },
-          {
-            ...axis,
-            font: "10px ui-monospace, monospace",
-            size: 64,
-            values: (_u, ticks) => ticks.map((t) => formatRef.current(t)),
-          },
-        ],
-        series: [
-          { value: (_u, t) => (t == null ? "" : new Date(t * 1000).toLocaleString()) },
-          ...series.map((s, i) => ({
-            label: s.label,
-            width: 2,
-            spanGaps: false,
-            points: { show: false },
-            value: (_u: uPlot, v: number | null) => (v == null ? "no data" : formatRef.current(v)),
-            ...style(i, s.label),
-          })),
-        ],
-      };
-      plot = new uPlot(options, aligned(series), el);
-    };
-    draw();
-
-    const resize = new ResizeObserver(() => plot?.setSize({ width: el.clientWidth, height }));
-    resize.observe(el);
-    // Light and dark mode swap the tokens: draw again with the new ones.
-    const theme = new MutationObserver(draw);
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
-    return () => {
-      resize.disconnect();
-      theme.disconnect();
-      plot?.destroy();
-    };
-  }, [series, height, dropped, step]);
+  // Series keys are positional (``s0``, ``s1``…) so labels never have to be
+  // valid CSS variable names.
+  const { data, config } = useMemo(() => {
+    const config: ChartConfig = {};
+    series.forEach((s, i) => {
+      config[`s${i}`] = { label: s.label, color: style(i, s.label).stroke };
+    });
+    const data = (series[0]?.points ?? []).map(([t], row) => {
+      const datum: Record<string, number | null> = { t };
+      series.forEach((s, i) => {
+        datum[`s${i}`] = s.points[row]?.[1] ?? null;
+      });
+      return datum;
+    });
+    return { data, config };
+  }, [series]);
 
   if (!series.length) {
     return <p className="px-5 py-8 text-center text-[13px] text-muted-foreground">No data in this range.</p>;
@@ -139,7 +96,92 @@ export function TimeSeriesChart({
 
   return (
     <figure className="m-0">
-      <div ref={box} className="ordo-uplot w-full text-[12px]" role="img" aria-label={label} />
+      <ChartContainer
+        config={config}
+        className="aspect-auto w-full text-[12px] [&_.recharts-cartesian-axis-tick_text]:font-mono [&_.recharts-cartesian-axis-tick_text]:text-[10px]"
+        style={{ height: height + 32 }}
+        role="img"
+        aria-label={label}
+      >
+        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid vertical={false} stroke="var(--border)" />
+          {shown.map((t) => (
+            <ReferenceArea
+              key={t}
+              x1={t}
+              x2={t + step}
+              fill="var(--muted)"
+              fillOpacity={1}
+              ifOverflow="hidden"
+            />
+          ))}
+          <XAxis
+            dataKey="t"
+            type="number"
+            scale="time"
+            domain={["dataMin", "dataMax"]}
+            tickFormatter={(t: number) => tickTime(t, span)}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={32}
+          />
+          <YAxis
+            domain={([min, max]: readonly number[]) => [Math.min(0, min), max > 0 ? max * 1.1 : 1]}
+            tickFormatter={(v: number) => format(v)}
+            tickLine={false}
+            axisLine={false}
+            width={64}
+          />
+          <ChartTooltip
+            cursor={{ stroke: "var(--muted-foreground)", strokeDasharray: "3 3" }}
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, payload) => new Date(Number(payload[0]?.payload?.t) * 1000).toLocaleString()}
+                formatter={(value, _, item) => {
+                  const i = Number(String(item.dataKey).slice(1));
+                  return (
+                    <div className="flex w-full items-center gap-2">
+                      <Swatch {...style(i, series[i].label)} />
+                      <span className="text-muted-foreground">{series[i].label}</span>
+                      <span className="ml-auto font-mono font-medium tabular-nums">
+                        {value == null ? "no data" : format(Number(value))}
+                      </span>
+                    </div>
+                  );
+                }}
+              />
+            }
+          />
+          <ChartLegend
+            content={() => (
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-3">
+                {series.map((s, i) => (
+                  <div key={s.label} className="flex items-center gap-1.5">
+                    <Swatch {...style(i, s.label)} />
+                    {s.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          />
+          {series.map((s, i) => (
+            <Line
+              key={s.label}
+              dataKey={`s${i}`}
+              name={s.label}
+              type="linear"
+              stroke={`var(--color-s${i})`}
+              strokeWidth={2}
+              strokeDasharray={style(i, s.label).dash}
+              dot={false}
+              activeDot={{ r: 4 }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ChartContainer>
       {shown.length > 0 && (
         <figcaption className="mt-1 flex items-center gap-1.5 text-[12px] text-muted-foreground">
           <span aria-hidden className="inline-block size-2.5 rounded-[2px] bg-muted ring-1 ring-border" />
