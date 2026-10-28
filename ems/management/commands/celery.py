@@ -1,4 +1,5 @@
 import atexit
+import os
 import subprocess
 import sys
 
@@ -60,6 +61,12 @@ class Command(BaseCommand):
             # worker (spec 0006).
             argv = ['worker', '-l', loglevel, '--concurrency', concurrency,
                     '-Q', 'celery,observability']
+
+        # Where pool children spawn instead of fork (macOS), they start with
+        # none of the worker's state and every task dies with "not enough
+        # values to unpack (expected 3, got 0)". This tells Celery to set
+        # them up itself; children inherit it. Harmless where they fork.
+        os.environ.setdefault('FORKED_BY_MULTIPROCESSING', '1')
 
         self.stdout.write(self.style.SUCCESS(f"Starting Celery {mode}..."))
         if mode == 'all':
