@@ -20,10 +20,18 @@ class Command(BaseCommand):
             nargs='?',
             default='worker',
             choices=['worker', 'beat', 'all'],
-            help="worker (default), beat, or all (worker with embedded beat)",
+            help="worker (default), beat, or all (worker and separate beat process)",
         )
         parser.add_argument('-l', '--loglevel', default='info')
         parser.add_argument('-c', '--concurrency', type=int, default=4)
+        # Celery 5.3's prefork fast tracer has no task registry in spawned
+        # children on macOS/Windows. Solo avoids that local startup failure.
+        parser.add_argument(
+            '-P', '--pool',
+            default='solo' if sys.platform in ('darwin', 'win32') else 'prefork',
+            help='Worker pool (default: solo on macOS/Windows, prefork elsewhere). '
+                 'Solo runs one task at a time and ignores concurrency.',
+        )
         parser.add_argument(
             '--reload',
             action='store_true',
@@ -59,6 +67,7 @@ class Command(BaseCommand):
             # Both queues locally; production gives observability its own
             # worker (spec 0006).
             argv = ['worker', '-l', loglevel, '--concurrency', concurrency,
+                    '--pool', options['pool'],
                     '-Q', 'celery,observability']
 
         self.stdout.write(self.style.SUCCESS(f"Starting Celery {mode}..."))

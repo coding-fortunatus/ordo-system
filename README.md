@@ -33,3 +33,46 @@ The documentation reflects the behavior and configuration found in the current r
 | `testing/` | Exploratory testing resources |
 | `.env.example` | Local development settings. Copy to `.env`. Production uses `deploy/.env.prod.example`. |
 
+## Local development
+
+Use Python 3.11, the version used by CI and the runtime image. Copy
+`.env.example` to `.env` and configure your local PostgreSQL and Redis connections.
+After installing dependencies, initialize the platform with:
+
+```sh
+python manage.py migrate_platform
+python manage.py create_platform_admin --email you@example.com --name "Your Name"
+```
+
+`migrate_platform` applies shared and school migrations and registers
+`console.localhost` and `api.localhost` against the public schema. Running
+`migrate_schemas` alone creates the public tenant but does not register these
+domains. If console login returns `School not found.` on an existing database,
+run `python manage.py ensure_public_domains`. Run it again after changing
+`PLATFORM_BASE_DOMAIN` or `PLATFORM_CONSOLE_SUBDOMAIN`, keeping frontend and
+backend host settings consistent.
+
+Start Django, the background worker and scheduler, and the frontend in separate
+terminals:
+
+```sh
+python manage.py runserver
+python manage.py celery all
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Open `http://console.localhost:3000` for platform administration. Platform admins
+are separate from school user accounts.
+
+The local Celery command uses `solo` on macOS and Windows because Celery 5.3's
+default process pool can fail under `spawn` with
+`ValueError: not enough values to unpack (expected 3, got 0)` before task code
+runs. Solo processes one task at a time, ignores `--concurrency`, and does not
+provide prefork task time limits. Linux keeps `prefork`. You can override the
+pool with `python manage.py celery all --pool threads -c 4`. When invoking
+Celery directly on macOS or Windows, use
+`celery -A core worker -l info --pool solo -Q celery,observability` and run beat
+separately.
+
