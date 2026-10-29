@@ -48,6 +48,7 @@ import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platf
 import { Route as PlatformConsoleConsoleStaffRouteImport } from './routes/_platform/_console/console.staff'
 import { Route as PlatformConsoleConsoleObservabilityIndexRouteImport } from './routes/_platform/_console/console.observability.index'
 import { Route as PlatformConsoleConsoleObservabilityAlertsRouteImport } from './routes/_platform/_console/console.observability.alerts'
+import { Route as PlatformConsoleConsoleObservabilityGuideRouteImport } from './routes/_platform/_console/console.observability.guide'
 import { Route as PlatformConsoleConsoleObservabilityLogsRouteImport } from './routes/_platform/_console/console.observability.logs'
 import { Route as PlatformConsoleConsoleObservabilityMetricsRouteImport } from './routes/_platform/_console/console.observability.metrics'
 import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
@@ -261,6 +262,12 @@ const PlatformConsoleConsoleObservabilityAlertsRoute =
     path: '/console/observability/alerts',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleObservabilityGuideRoute =
+  PlatformConsoleConsoleObservabilityGuideRouteImport.update({
+    id: '/console/observability/guide',
+    path: '/console/observability/guide',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 const PlatformConsoleConsoleObservabilityLogsRoute =
   PlatformConsoleConsoleObservabilityLogsRouteImport.update({
     id: '/console/observability/logs',
@@ -358,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console/': typeof PlatformConsoleConsoleIndexRoute
   '/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/console/observability/guide': typeof PlatformConsoleConsoleObservabilityGuideRoute
   '/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
   '/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
@@ -406,6 +414,7 @@ export interface FileRoutesByTo {
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console': typeof PlatformConsoleConsoleIndexRoute
   '/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/console/observability/guide': typeof PlatformConsoleConsoleObservabilityGuideRoute
   '/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
   '/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
@@ -458,6 +467,7 @@ export interface FileRoutesById {
   '/_platform/_console/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
   '/_platform/_console/console/observability/alerts': typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  '/_platform/_console/console/observability/guide': typeof PlatformConsoleConsoleObservabilityGuideRoute
   '/_platform/_console/console/observability/logs': typeof PlatformConsoleConsoleObservabilityLogsRoute
   '/_platform/_console/console/observability/metrics': typeof PlatformConsoleConsoleObservabilityMetricsRoute
   '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/console/staff'
     | '/console/'
     | '/console/observability/alerts'
+    | '/console/observability/guide'
     | '/console/observability/logs'
     | '/console/observability/metrics'
     | '/console/schools/$id'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/console/staff'
     | '/console'
     | '/console/observability/alerts'
+    | '/console/observability/guide'
     | '/console/observability/logs'
     | '/console/observability/metrics'
     | '/console/schools/$id'
@@ -607,6 +619,7 @@ export interface FileRouteTypes {
     | '/_platform/_console/console/staff'
     | '/_platform/_console/console/'
     | '/_platform/_console/console/observability/alerts'
+    | '/_platform/_console/console/observability/guide'
     | '/_platform/_console/console/observability/logs'
     | '/_platform/_console/console/observability/metrics'
     | '/_platform/_console/console/schools/$id'
@@ -903,6 +916,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformConsoleConsoleObservabilityAlertsRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
+    '/_platform/_console/console/observability/guide': {
+      id: '/_platform/_console/console/observability/guide'
+      path: '/console/observability/guide'
+      fullPath: '/console/observability/guide'
+      preLoaderRoute: typeof PlatformConsoleConsoleObservabilityGuideRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
     '/_platform/_console/console/observability/logs': {
       id: '/_platform/_console/console/observability/logs'
       path: '/console/observability/logs'
@@ -1036,6 +1056,7 @@ interface PlatformConsoleRouteChildren {
   PlatformConsoleConsoleStaffRoute: typeof PlatformConsoleConsoleStaffRoute
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
   PlatformConsoleConsoleObservabilityAlertsRoute: typeof PlatformConsoleConsoleObservabilityAlertsRoute
+  PlatformConsoleConsoleObservabilityGuideRoute: typeof PlatformConsoleConsoleObservabilityGuideRoute
   PlatformConsoleConsoleObservabilityLogsRoute: typeof PlatformConsoleConsoleObservabilityLogsRoute
   PlatformConsoleConsoleObservabilityMetricsRoute: typeof PlatformConsoleConsoleObservabilityMetricsRoute
   PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
@@ -1061,6 +1082,8 @@ const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
   PlatformConsoleConsoleObservabilityAlertsRoute:
     PlatformConsoleConsoleObservabilityAlertsRoute,
+  PlatformConsoleConsoleObservabilityGuideRoute:
+    PlatformConsoleConsoleObservabilityGuideRoute,
   PlatformConsoleConsoleObservabilityLogsRoute:
     PlatformConsoleConsoleObservabilityLogsRoute,
   PlatformConsoleConsoleObservabilityMetricsRoute:

@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   BellRing,
+  BookOpen,
   ChevronsUpDown,
   Gauge,
   Layers,
@@ -85,6 +86,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { to: "/console/observability/metrics", label: "Metrics", icon: LineChart },
       { to: "/console/observability/dashboards", label: "Dashboards", icon: LayoutGrid },
       { to: "/console/observability/alerts", label: "Alerts", icon: BellRing },
+      { to: "/console/observability/guide", label: "Guide", icon: BookOpen },
     ],
   },
   {
