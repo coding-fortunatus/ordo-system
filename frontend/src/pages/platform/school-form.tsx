@@ -11,6 +11,7 @@ import {
   type SchoolDetail,
   usePlans,
   useCreateSchool,
+  useUpdateDemoRequest,
   useUpdateSchool,
 } from "@/api/platform";
 import { PageHeader } from "@/components/layout/page-header";
@@ -189,11 +190,22 @@ const TEXTAREA =
  * anything but the address; a school may stay on a plan that is no longer
  * offered, but can't be moved onto one.
  */
-export function SchoolForm({ school }: { school?: SchoolDetail }) {
+export function SchoolForm({
+  school,
+  prefill,
+  fromRequest,
+}: {
+  school?: SchoolDetail;
+  /** Starting values for a new school, e.g. from a website demo request. */
+  prefill?: Partial<Values>;
+  /** The demo request this school is being created for; linked once it exists. */
+  fromRequest?: number;
+}) {
   const navigate = useNavigate();
   const plans = usePlans();
   const create = useCreateSchool();
   const update = useUpdateSchool();
+  const linkRequest = useUpdateDemoRequest();
   const editing = school !== undefined;
   const [topError, setTopError] = useState<string | null>(null);
   // The address follows the name until someone edits it by hand. It never
@@ -215,7 +227,13 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: toValues(school),
+    defaultValues: prefill
+      ? {
+          ...toValues(school),
+          ...prefill,
+          slug: prefill.slug ?? slugify(prefill.name ?? ""),
+        }
+      : toValues(school),
   });
   const slug = form.watch("slug");
   const usePlanFeatures = form.watch("use_plan_features");
@@ -232,6 +250,18 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
         return;
       }
       const created = await create.mutateAsync(toInput(values));
+      if (fromRequest !== undefined) {
+        // The school exists either way; a failed link is only a toast.
+        linkRequest
+          .mutateAsync({ id: fromRequest, status: "converted", school_id: created.id })
+          .catch(() =>
+            toast({
+              title: "School created, request not linked",
+              description: "Mark the request as converted on the Requests page.",
+              variant: "destructive",
+            }),
+          );
+      }
       toast({
         title: `Setting up ${created.name}`,
         description: `${values.first_admin_email} gets an invite as soon as it's ready.`,

@@ -603,3 +603,106 @@ export const useCreateAnnouncement = () =>
 
 export const useWithdrawAnnouncement = () =>
   useAnnouncementMutation((id: number) => platformApi.post(`/announcements/${id}/withdraw/`));
+
+/* ------------------------------------------------------------ demo requests */
+
+const DEMO_REQUESTS = ["platform", "demo-requests"] as const;
+
+export type DemoRequestKind = "demo" | "setup" | "question";
+export type DemoRequestStatus = "new" | "contacted" | "scheduled" | "converted" | "closed";
+
+export const DEMO_REQUEST_KINDS: Record<DemoRequestKind, string> = {
+  demo: "Demo",
+  setup: "Setup help",
+  question: "Question",
+};
+
+export const DEMO_REQUEST_STATUSES: Record<DemoRequestStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  scheduled: "Scheduled",
+  converted: "Converted",
+  closed: "Closed",
+};
+
+export const STUDENT_COUNT_LABELS: Record<string, string> = {
+  under_2k: "Under 2,000",
+  "2k_10k": "2,000 – 10,000",
+  "10k_30k": "10,000 – 30,000",
+  over_30k: "Over 30,000",
+};
+
+export interface DemoRequestRow {
+  id: number;
+  kind: DemoRequestKind;
+  name: string;
+  email: string;
+  phone: string;
+  institution: string;
+  job_title: string;
+  student_count: string;
+  message: string;
+  status: DemoRequestStatus;
+  notes: string;
+  assigned_to: { id: number; name: string } | null;
+  school: { id: number; name: string; slug: string } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoRequestListParams {
+  page?: number;
+  /** A status, or "open" for every one still waiting on the team. */
+  status?: DemoRequestStatus | "open";
+  kind?: DemoRequestKind;
+  q?: string;
+}
+
+export interface UpdateDemoRequestInput {
+  id: number;
+  status?: DemoRequestStatus;
+  notes?: string;
+  assigned_to_id?: number | null;
+  school_id?: number | null;
+}
+
+export function useDemoRequests(params: DemoRequestListParams = {}) {
+  return useQuery({
+    queryKey: [...DEMO_REQUESTS, "list", params],
+    queryFn: async () =>
+      (
+        await platformApi.get<PaginatedResponse<DemoRequestRow>>("/demo-requests/", { params })
+      ).data,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDemoRequest(id: number | undefined) {
+  return useQuery({
+    queryKey: [...DEMO_REQUESTS, "detail", id],
+    queryFn: async () => (await platformApi.get<DemoRequestRow>(`/demo-requests/${id}/`)).data,
+    enabled: id !== undefined,
+  });
+}
+
+/** Requests nobody has picked up yet, for the nav badge. */
+export function useNewDemoRequestCount() {
+  return useQuery({
+    queryKey: [...DEMO_REQUESTS, "summary"],
+    queryFn: async () =>
+      (await platformApi.get<{ new: number }>("/demo-requests/summary/")).data.new,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useUpdateDemoRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...input }: UpdateDemoRequestInput) =>
+      (await platformApi.patch<DemoRequestRow>(`/demo-requests/${id}/`, input)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: DEMO_REQUESTS });
+      void qc.invalidateQueries({ queryKey: AUDIT });
+    },
+  });
+}

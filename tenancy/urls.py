@@ -1,7 +1,7 @@
 """``/api/platform/``: public urlconf only, never on a school host."""
 from django.urls import path
 
-from tenancy import account_views, console_views, school_views, views
+from tenancy import account_views, console_views, demo_requests, school_views, views
 from tenancy.observability import alert_views, dashboard_views, metric_views, telemetry_views
 from tenancy.observability import views as observability_views
 
@@ -35,6 +35,9 @@ urlpatterns = [
     path("staff/reindex/", console_views.StaffReindexView.as_view()),
     path("announcements/", console_views.AnnouncementListView.as_view()),
     path("announcements/<int:pk>/withdraw/", console_views.AnnouncementWithdrawView.as_view()),
+    path("demo-requests/", demo_requests.DemoRequestListView.as_view()),
+    path("demo-requests/summary/", demo_requests.DemoRequestSummaryView.as_view()),
+    path("demo-requests/<int:pk>/", demo_requests.DemoRequestDetailView.as_view()),
     path("schools/<int:pk>/", school_views.SchoolDetailView.as_view()),
     path("schools/<int:pk>/retry/", school_views.SchoolRetryView.as_view()),
     path("schools/<int:pk>/resend-invite/", school_views.SchoolResendInviteView.as_view()),

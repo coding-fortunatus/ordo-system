@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronsUpDown,
   Gauge,
+  Inbox,
   Layers,
   LayoutDashboard,
   LayoutGrid,
@@ -22,6 +23,7 @@ import {
   Sun,
   UserRound,
 } from "lucide-react";
+import { useNewDemoRequestCount } from "@/api/platform";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -51,6 +53,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -64,6 +67,8 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   requires?: (a: PlatformAdmin | null) => boolean;
+  /** A live count shown beside the label. */
+  badge?: "requests";
 }
 
 const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
@@ -72,6 +77,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/console", label: "Dashboard", icon: LayoutDashboard },
       { to: "/console/schools", label: "Schools", icon: School },
+      { to: "/console/requests", label: "Requests", icon: Inbox, badge: "requests" },
       { to: "/console/health", label: "Health", icon: Activity },
       { to: "/console/staff", label: "Find staff", icon: Search },
     ],
@@ -122,6 +128,8 @@ function ConsoleSidebar() {
     items: g.items.filter((item) => !item.requires || item.requires(admin)),
   }));
   const isDark = theme === "dark";
+  const newRequests = useNewDemoRequestCount();
+  const badges: Record<NonNullable<NavItem["badge"]>, number> = { requests: newRequests.data ?? 0 };
   const initials =
     admin?.name
       .split(/\s+/)
@@ -168,6 +176,9 @@ function ConsoleSidebar() {
                     <item.icon strokeWidth={2} />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
+                  {item.badge && badges[item.badge] > 0 && (
+                    <SidebarMenuBadge aria-label={`${badges[item.badge]} new`}>{badges[item.badge]}</SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

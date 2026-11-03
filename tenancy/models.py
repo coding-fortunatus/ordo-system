@@ -806,3 +806,55 @@ class AlertIncident(models.Model):
             )
         ]
         indexes = [models.Index(fields=["-started_at"])]
+
+
+class DemoRequest(models.Model):
+    """Someone on the marketing site asking for a demo or for help setting
+    Ordo up. Posted through ``/api/public/demo-requests/`` by the site's
+    server; worked through in the console's Requests page."""
+
+    class Kind(models.TextChoices):
+        DEMO = "demo", "Demo"
+        SETUP = "setup", "Setup help"
+        QUESTION = "question", "Question"
+
+    class Status(models.TextChoices):
+        NEW = "new", "New"
+        CONTACTED = "contacted", "Contacted"
+        SCHEDULED = "scheduled", "Scheduled"
+        CONVERTED = "converted", "Converted"
+        CLOSED = "closed", "Closed"
+
+    # Still waiting on the team: counted in the console's nav badge.
+    OPEN_STATUSES = (Status.NEW, Status.CONTACTED, Status.SCHEDULED)
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.DEMO)
+    name = models.CharField(max_length=150)
+    email = models.EmailField()
+    phone = models.CharField(max_length=40, blank=True, default="")
+    institution = models.CharField(max_length=255)
+    job_title = models.CharField(max_length=150, blank=True, default="")
+    # A rough size band ("under_5k", ...), free text kept short.
+    student_count = models.CharField(max_length=20, blank=True, default="")
+    message = models.TextField(max_length=2000, blank=True, default="")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.NEW)
+    # The team's own notes, never shown to the requester.
+    notes = models.TextField(max_length=5000, blank=True, default="")
+    assigned_to = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="demo_requests",
+    )
+    # Set when the request turns into a school in the console.
+    school = models.ForeignKey(
+        School, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["status", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.institution}"
