@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, Waypoints } from "lucide-react";
+import { FileText, Info, Waypoints } from "lucide-react";
 import {
   METRIC_RANGE_LABELS,
   type MetricLine,
@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -88,8 +89,20 @@ function MetricCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[14px]">{title}</CardTitle>
-        {description && <p className="text-[12px] text-muted-foreground">{description}</p>}
+        <CardTitle className="flex items-center gap-1.5 text-[14px]">
+          {title}
+          {description && (
+            <Tooltip>
+              <TooltipTrigger
+                aria-label={`About ${title}`}
+                className="inline-flex size-4 items-center justify-center text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+              >
+                <Info className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-72 leading-relaxed">{description}</TooltipContent>
+            </Tooltip>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {loading && !panel ? (
