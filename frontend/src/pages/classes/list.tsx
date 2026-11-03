@@ -145,7 +145,9 @@ export default function ClassesListPage() {
   return (
     <>
       <ListShell
+        section="Catalog · Classes"
         title="Classes"
+        emptyMessage={query || department !== "__all__" ? "No classes match these filters." : "No classes yet."}
         description="Each department's classes, with their courses and students."
         toolbar={
           isAdmin && (

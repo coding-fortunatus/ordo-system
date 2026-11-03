@@ -156,7 +156,9 @@ function UsersTable({ tabs, onInvite }: { tabs: ReactNode; onInvite: () => void 
   return (
     <>
       <ListShell
+        section="Admin · Users"
         title="Users"
+        emptyMessage={query ? "No users match your search." : "No users yet."}
         description="Everyone who can sign in to Ordo, from admins to department staff."
         toolbar={
           <div className="flex flex-wrap gap-2">

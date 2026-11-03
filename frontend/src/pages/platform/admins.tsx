@@ -91,6 +91,7 @@ export default function ConsoleAdminsPage() {
   return (
     <>
       <ListShell
+        section="Console · Manage"
         title="Admins"
         description="The Ordo team. Owners can do everything; Support can look after schools but can't create or delete them, change plans or manage admins."
         toolbar={

@@ -247,7 +247,7 @@ export default function ConsoleAnnouncementsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        section="Console"
+        section="Console · Manage"
         title="Announcements"
         description="A banner every school sees on its dashboard. Up to three show at once, newest first."
       />

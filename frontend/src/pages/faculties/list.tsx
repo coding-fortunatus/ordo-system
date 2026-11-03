@@ -72,7 +72,7 @@ export default function FacultiesListPage() {
               setDialogOpen(true);
             }}
           >
-            <Plus data-icon="inline-start" strokeWidth={2.25} />
+            <Plus data-icon="inline-start" />
             New faculty
           </Button>
         }

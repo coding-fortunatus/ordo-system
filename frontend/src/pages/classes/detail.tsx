@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -113,69 +114,69 @@ export default function ClassDetailPage() {
         <Skeleton className="h-32" />
       ) : cls.data ? (
         <>
-          <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Catalog · Class
-              </p>
-              <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-                {cls.data.name}
-              </h1>
-              <div className="mt-2">
-                <FromPortalBadge record={cls.data} />
-              </div>
-              <p className="mt-2 text-[14.5px] text-muted-foreground">
-                {cls.data.department.name}
-                <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
-                  {cls.data.department.slug}
-                </span>
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Students enrolled
-                </p>
-                <p className="mt-1 font-serif text-[2rem] tabular-nums">
-                  {cls.data.student_count}
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4">
-                <p
-                  id="class-active-label"
-                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Sitting this session
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  {isAdmin ? (
-                    <Switch
-                      checked={cls.data.is_active}
-                      disabled={setActive.isPending}
-                      aria-labelledby="class-active-label"
-                      onCheckedChange={async (is_active) => {
-                        try {
-                          await setActive.mutateAsync({
-                            id: cls.data!.id,
-                            is_active,
-                          });
-                        } catch (err) {
-                          toast({
-                            title: "Could not change the class",
-                            description: extractErrorEnvelope(err).detail,
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    />
-                  ) : null}
-                  <span className="text-sm">
-                    {cls.data.is_active ? "Yes" : "No, left out of planning"}
+          <PageHeader
+            section="Catalog · Classes"
+            title={cls.data.name}
+            meta={
+              <>
+                <div>
+                  <FromPortalBadge record={cls.data} />
+                </div>
+                <p className="mt-2 text-[14.5px] text-muted-foreground">
+                  {cls.data.department.name}
+                  <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
+                    {cls.data.department.slug}
                   </span>
+                </p>
+              </>
+            }
+            actions={
+              <div className="flex gap-3">
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Students enrolled
+                  </p>
+                  <p className="mt-1 font-serif text-[2rem] tabular-nums">
+                    {cls.data.student_count}
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4">
+                  <p
+                    id="class-active-label"
+                    className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Sitting this session
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    {isAdmin ? (
+                      <Switch
+                        checked={cls.data.is_active}
+                        disabled={setActive.isPending}
+                        aria-labelledby="class-active-label"
+                        onCheckedChange={async (is_active) => {
+                          try {
+                            await setActive.mutateAsync({
+                              id: cls.data!.id,
+                              is_active,
+                            });
+                          } catch (err) {
+                            toast({
+                              title: "Could not change the class",
+                              description: extractErrorEnvelope(err).detail,
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <span className="text-sm">
+                      {cls.data.is_active ? "Yes" : "No, left out of planning"}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </header>
+            }
+          />
 
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">

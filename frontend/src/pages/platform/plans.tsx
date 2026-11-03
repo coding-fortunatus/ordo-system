@@ -64,6 +64,7 @@ export default function ConsolePlansPage() {
   return (
     <>
       <ListShell
+        section="Console · Manage"
         title="Plans"
         description="What a school can use: how many students and staff accounts, and which features. Any school can override a limit. Plans are switched off when no longer offered, never deleted."
         toolbar={

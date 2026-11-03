@@ -365,7 +365,7 @@ export default function ConsoleDashboardPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        section="Console"
+        section="Console · Platform"
         title="Dashboard"
         description="Every school on Ordo at a glance: who is using it, what needs a look, and what changed."
         actions={

@@ -82,7 +82,7 @@ export default function DirectoryPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        section="Operations · Documents"
+        section="Operations · Directory & VISA"
         title="Directory & VISA"
         description="See which hall each class sits in and which classes are writing in each slot, then download the documents as PDF, Word or CSV."
       />

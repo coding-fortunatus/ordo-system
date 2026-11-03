@@ -32,7 +32,7 @@ export default function ConsoleStaffSearchPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        section="Console"
+        section="Console · Platform"
         title="Find staff"
         description="Look up which school a staff email or name belongs to. Students aren't included. The index is rebuilt every night."
         actions={

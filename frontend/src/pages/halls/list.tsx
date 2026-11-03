@@ -242,7 +242,9 @@ export default function HallsListPage() {
   return (
     <>
       <ListShell
+        section="Catalog · Halls"
         title="Halls"
+        emptyMessage={query ? "No halls match your search." : "No halls yet."}
         description="The venues you run exams in, and how their seats are laid out."
         toolbar={
           isAdmin && (

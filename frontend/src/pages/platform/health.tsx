@@ -37,7 +37,7 @@ export default function ConsoleHealthPage() {
   return (
     <div className="space-y-10">
       <PageHeader
-        section="Console · Health"
+        section="Console · Platform"
         title="School health"
         description="Server errors, failed jobs, refused sockets and browser errors in each school over the last hour, worst first. This page refreshes every minute."
         meta={

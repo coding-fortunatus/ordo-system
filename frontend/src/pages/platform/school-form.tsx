@@ -270,13 +270,13 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
       {school ? (
         <PageHeader
           section="Console · Edit school"
-          title={`Edit ${school.name}.`}
+          title={`Edit ${school.name}`}
           description="Changes apply at once. The address can never change."
         />
       ) : (
         <PageHeader
           section="Console · New school"
-          title="Add a school."
+          title="Add a school"
           description="Ordo builds the school its own private database in the background, then emails the first administrator a link to set their password."
         />
       )}

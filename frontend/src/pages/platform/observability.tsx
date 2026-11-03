@@ -139,9 +139,10 @@ function PanelsError({ error }: { error: unknown }) {
 
 /**
  * The platform at a glance (spec 0006, AC-21): traffic, errors, latency,
- * jobs, the host and the database, for all schools or one. A gap in a chart
- * is a minute Ordo doesn't know about yet (or dropped); a flat line at zero
- * really was zero. A shaded stretch is where telemetry was dropped (AC-4).
+ * jobs, the host and the database, for all schools or one. Lines run
+ * straight across minutes Ordo has no data for (the tooltip reads "no data"
+ * there); a flat line at zero really was zero. A shaded stretch is where
+ * telemetry was dropped (AC-4).
  */
 export default function ConsoleObservabilityPage({ search }: { search: ObservabilitySearch }) {
   const navigate = useNavigate();
@@ -192,6 +193,14 @@ export default function ConsoleObservabilityPage({ search }: { search: Observabi
         >
           <Waypoints data-icon="inline-start" />
           Traces
+        </Link>
+        <Link
+          to="/console/observability/logs"
+          search={{ school: search.school === undefined ? undefined : String(search.school) }}
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          <FileText data-icon="inline-start" />
+          Logs
         </Link>
       </div>
 

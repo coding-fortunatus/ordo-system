@@ -90,6 +90,7 @@ export default function JobsListPage() {
   return (
     <>
       <ListShell
+        section="Admin · Jobs"
         title="Jobs"
         description="Long-running tasks like timetable generation, and how they went. Admins can see everyone's."
         filters={

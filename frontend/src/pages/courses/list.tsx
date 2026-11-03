@@ -79,7 +79,9 @@ export default function CoursesListPage() {
   return (
     <>
       <ListShell
+        section="Catalog · Courses"
         title="Courses"
+        emptyMessage={query || examType !== "__all__" || department !== "__all__" ? "No courses match these filters." : "No courses yet."}
         description="Every course that has an exam, across all departments."
         toolbar={
           isAdmin && (

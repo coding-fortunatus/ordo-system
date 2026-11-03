@@ -170,6 +170,7 @@ export default function ConsoleAuditPage({
 
   return (
     <ListShell
+      section="Console · Manage"
       title="Audit log"
       description="Every console sign in, failed attempt and change, with who did it, when and from where."
       filters={

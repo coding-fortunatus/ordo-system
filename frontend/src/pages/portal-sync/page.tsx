@@ -100,7 +100,7 @@ export default function PortalSyncPage() {
   return (
     <div className="space-y-10">
       <PageHeader
-        section="Admin · Ingestion"
+        section="Admin · Portal sync"
         title="Portal sync"
         description="Pull your departments, classes, courses and students straight from your school's own portal instead of uploading CSV files."
         meta={<StatusChip connected={!!conn} locked={locked} lastStatus={lastRun?.status} />}

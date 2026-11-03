@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, LayoutGrid, List } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { useHallAllocation } from "@/api/scheduling";
 import { api } from "@/lib/api";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
@@ -157,50 +158,50 @@ export default function HallAllocationPage() {
         </Alert>
       ) : data.data ? (
         <>
-          <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Allocation · Hall
-              </p>
-              <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-                {data.data.hall.name}
-              </h1>
-              <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
-                {data.data.hall.columns} grid · {data.data.hall.seat_count} seats · cap{" "}
-                {data.data.hall.capacity}
-              </p>
-              {relaxedCodes.size > 0 && (
-                <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <RelaxedSeatingBadge />
-                  <span>
-                    <span className="font-mono text-[12px] text-foreground">
-                      {[...relaxedCodes].join(", ")}
-                    </span>{" "}
-                    may sit diagonally next to each other. Watch the diagonals.
-                  </span>
+          <PageHeader
+            section="Operations · Allocation"
+            title={data.data.hall.name}
+            meta={
+              <>
+                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
+                  {data.data.hall.columns} grid · {data.data.hall.seat_count} seats · cap{" "}
+                  {data.data.hall.capacity}
                 </p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-6 self-start sm:self-end">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Placed
-                </p>
-                <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-green-fg)]">
-                  {data.data.placed.length}
-                </p>
+                {relaxedCodes.size > 0 && (
+                  <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <RelaxedSeatingBadge />
+                    <span>
+                      <span className="font-mono text-[12px] text-foreground">
+                        {[...relaxedCodes].join(", ")}
+                      </span>{" "}
+                      may sit diagonally next to each other. Watch the diagonals.
+                    </span>
+                  </p>
+                )}
+              </>
+            }
+            actions={
+              <div className="grid grid-cols-2 gap-6 self-start sm:self-end">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Placed
+                  </p>
+                  <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-green-fg)]">
+                    {data.data.placed.length}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Unplaced
+                  </p>
+                  <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-red-fg)]">
+                    {data.data.unplaced.length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Unplaced
-                </p>
-                <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-red-fg)]">
-                  {data.data.unplaced.length}
-                </p>
-              </div>
-            </div>
-          </header>
+            }
+          />
 
           <Tabs defaultValue="placed">
             <TabsList>

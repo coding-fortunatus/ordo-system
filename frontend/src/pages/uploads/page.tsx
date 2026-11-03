@@ -52,7 +52,7 @@ export default function UploadsPage() {
   return (
     <div className="space-y-10">
       <PageHeader
-        section="Admin · Ingestion"
+        section="Admin · Uploads"
         title="Bulk uploads"
         description="Bring in departments, halls and courses from CSV files. To upload a class's students or courses, open that class."
         meta={

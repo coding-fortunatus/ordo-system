@@ -4,6 +4,7 @@ import { str } from "@/lib/search";
 import HallAllocationPage from "@/pages/allocation/hall";
 
 export const Route = createFileRoute("/_app/allocation/hall")({
+  head: () => ({ meta: [{ title: "Hall allocation | Ordo" }] }),
   validateSearch: (search: Record<string, unknown>): { date?: string; period?: string; hall_id?: string } => ({
     date: str(search.date),
     period: str(search.period),

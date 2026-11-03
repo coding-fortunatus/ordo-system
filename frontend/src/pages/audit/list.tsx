@@ -79,6 +79,7 @@ export default function AuditLogListPage() {
 
   return (
     <ListShell
+      section="Admin · Audit log"
       title="Audit log"
       description="Every sign-in and change made in Ordo, with who did it, when and from where."
       toolbar={

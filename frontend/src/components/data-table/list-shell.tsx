@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 import { Search } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractErrorEnvelope } from "@/lib/api";
 
 interface Props {
+  /** The section chip, "<sidebar group> · <page>" (or "Console · <group>"). */
+  section: string;
   title: string;
   description?: string;
   toolbar?: ReactNode;
@@ -22,6 +25,7 @@ interface Props {
 }
 
 export function ListShell({
+  section,
   title,
   description,
   toolbar,
@@ -38,25 +42,7 @@ export function ListShell({
 }: Props) {
   return (
     <div className="space-y-10">
-      {/* Page header */}
-      <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            Catalog · {title}
-          </p>
-          <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-            {title}
-          </h1>
-          {description && (
-            <p className="mt-3 max-w-2xl text-[14.5px] leading-[1.65] text-muted-foreground">
-              {description}
-            </p>
-          )}
-        </div>
-        {toolbar && (
-          <div className="flex shrink-0 items-center gap-2">{toolbar}</div>
-        )}
-      </header>
+      <PageHeader section={section} title={title} description={description} actions={toolbar} />
 
       {/* Toolbar row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

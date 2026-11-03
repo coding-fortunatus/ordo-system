@@ -89,6 +89,7 @@ export default function ConsoleSchoolsPage() {
 
   return (
     <ListShell
+      section="Console · Platform"
       title="Schools"
       description="Every school on Ordo. Creating one builds its own private database and emails its first administrator an invite."
       toolbar={

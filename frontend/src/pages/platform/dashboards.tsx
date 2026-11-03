@@ -66,6 +66,7 @@ export default function ConsoleDashboardsPage() {
   return (
     <>
       <ListShell
+        section="Console · Observability"
         title="Dashboards"
         description="Charts saved from the metric explorer, shared with every admin. Each dashboard has its own school picker and time range."
         toolbar={
@@ -358,7 +359,7 @@ export function ConsoleDashboardPage({ id, search }: { id: number; search: Dashb
   return (
     <div className="space-y-8">
       <PageHeader
-        section="Console · Dashboards"
+        section="Console · Observability"
         title={data.name}
         description={byline(data)}
         actions={

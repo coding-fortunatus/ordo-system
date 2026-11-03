@@ -101,7 +101,9 @@ export default function StudentsListPage() {
   return (
     <>
       <ListShell
+        section="Catalog · Students"
         title="Students"
+        emptyMessage={query || department !== "__all__" || classFilter !== "__all__" ? "No students match these filters." : "No students yet."}
         description="Every student, with their department and class."
         toolbar={
           isAdmin && (

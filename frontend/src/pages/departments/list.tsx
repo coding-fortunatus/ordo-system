@@ -76,7 +76,7 @@ export default function DepartmentsListPage() {
                 setDialogOpen(true);
               }}
             >
-              <Plus data-icon="inline-start" strokeWidth={2.25} />
+              <Plus data-icon="inline-start" />
               New department
             </Button>
           )

@@ -96,6 +96,7 @@ export function InvitesList({ tabs, onInvite }: { tabs: ReactNode; onInvite: () 
 
   return (
     <ListShell
+      section="Admin · Users"
       title="Users"
       description="People you've invited who haven't joined yet. Each link lasts 7 days; resend one to start a fresh 7 days."
       toolbar={
