@@ -284,7 +284,7 @@ function SchoolActions({ row }: { row: SchoolRow }) {
         {canRetry && (
           <DropdownMenuItem onClick={() => void actions.retry(row)}>Retry setup</DropdownMenuItem>
         )}
-        {row.status === "active" && (
+        {row.status === "active" && row.first_admin_joined === false && (
           <DropdownMenuItem onClick={() => void actions.resend(row)}>
             Resend first admin invite
           </DropdownMenuItem>

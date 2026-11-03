@@ -261,6 +261,16 @@ class ResendFirstAdminInviteTests(SchoolConsoleTestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["detail"], "The first admin has already joined.")
 
+    def test_the_list_says_whether_the_first_admin_joined(self):
+        def joined():
+            rows = self.owner.get("/api/platform/schools/").data["results"]
+            return next(row["first_admin_joined"] for row in rows if row["slug"] == "unilag")
+
+        self.assertIs(joined(), False)
+        with schema_context(self.school.schema_name):
+            User.objects.create_user(email="ada@unilag.edu.ng", password="x-123456789")
+        self.assertIs(joined(), True)
+
     def test_resend_refuses_unless_the_school_is_active(self):
         School.objects.filter(pk=self.school.pk).update(status=School.Status.SUSPENDED)
         self.assertEqual(self.resend().status_code, 409)

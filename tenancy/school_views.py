@@ -8,7 +8,7 @@ import logging
 from datetime import date, timedelta
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
@@ -78,6 +78,28 @@ def _first_admin(school):
     return {"joined": joined, "invite_expires_at": None if joined else pending}
 
 
+def _joined(schools):
+    """``{school id: whether its first admin has joined}`` for the live ones,
+    in one query across their schemas. Mirrors ``invites.user_exists``:
+    support accounts don't count."""
+    from ems.models import User
+
+    live = [s for s in schools if s.status in School.LIVE_STATUSES]
+    if not live:
+        return {}
+    table = User._meta.db_table
+    parts, params = [], []
+    for school in live:
+        parts.append(
+            f"SELECT %s, EXISTS (SELECT 1 FROM {connection.ops.quote_name(school.schema_name)}.{table}"
+            " WHERE support_expires_at IS NULL AND UPPER(email) = UPPER(%s))"
+        )
+        params += [school.pk, school.first_admin_email]
+    with connection.cursor() as cursor:
+        cursor.execute(" UNION ALL ".join(parts), params)
+        return dict(cursor.fetchall())
+
+
 def _detail(school, code=status.HTTP_200_OK):
     data = SchoolDetailSerializer(
         school, context={"first_admin": _first_admin(school)}
@@ -112,6 +134,11 @@ class SchoolListView(generics.ListAPIView):
         if q := params.get("q", "").strip():
             queryset = queryset.filter(Q(name__icontains=q) | Q(slug__icontains=q))
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        context = {**self.get_serializer_context(), "joined": _joined(page)}
+        return self.get_paginated_response(SchoolListSerializer(page, many=True, context=context).data)
 
     def post(self, request):
         serializer = CreateSchoolSerializer(data=request.data)

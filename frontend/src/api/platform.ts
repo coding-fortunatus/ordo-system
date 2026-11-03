@@ -196,6 +196,8 @@ export interface SchoolRow {
   domain: string | null;
   first_admin_name: string;
   first_admin_email: string;
+  /** Null while the school has no live schema. */
+  first_admin_joined: boolean | null;
   country: string;
   provisioning_error: string;
   created_at: string;

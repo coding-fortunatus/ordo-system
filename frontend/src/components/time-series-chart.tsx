@@ -9,7 +9,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-/** One line: ``[epoch seconds, value]`` pairs; null is missing (drawn as a gap). */
+/** One line: ``[epoch seconds, value]`` pairs; null is missing (the line is
+ * drawn straight across it, and the tooltip reads "no data" there). */
 export interface ChartSeries {
   label: string;
   points: Array<[number, number | null]>;
@@ -45,7 +46,7 @@ function tickTime(seconds: number, span: number) {
 }
 
 /**
- * Lines over time on shadcn charts: missing points are gaps, zeros sit on
+ * Lines over time on shadcn charts: lines run across missing points, zeros sit on
  * the axis, and hovering shows every series' value in the tooltip. Buckets
  * in which telemetry was dropped are shaded (spec 0006, AC-4). Colors are
  * theme tokens, so they follow a theme change. The same numbers sit in a
@@ -176,7 +177,7 @@ export function TimeSeriesChart({
               strokeDasharray={style(i, s.label).dash}
               dot={false}
               activeDot={{ r: 4 }}
-              connectNulls={false}
+              connectNulls
               isAnimationActive={false}
             />
           ))}

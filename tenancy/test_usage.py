@@ -135,8 +135,9 @@ class ConsoleListTests(UsageTestCase):
                 students=students, staff_users=2, jobs_last_24h=4,
             )
 
-        # One snapshot query for the whole page, however many schools.
-        with self.assertNumQueries(12):
+        # One snapshot query and one "first admin joined" query for the
+        # whole page, however many schools.
+        with self.assertNumQueries(14):
             rows = self.rows()
 
         usage = rows[self.school.pk]["usage"]

@@ -170,11 +170,15 @@ class SchoolListSerializer(serializers.ModelSerializer):
     """A school as the console's list shows it.
 
     ``usage`` is the latest nightly snapshot, or None before the first one.
+    ``first_admin_joined`` comes from context (``joined``, by school id, or
+    the detail view's ``first_admin``); None while the school has no live
+    schema.
     """
 
     plan = _PlanRefSerializer(read_only=True)
     domain = serializers.SerializerMethodField()
     usage = serializers.SerializerMethodField()
+    first_admin_joined = serializers.SerializerMethodField()
 
     class Meta:
         model = School
@@ -187,6 +191,7 @@ class SchoolListSerializer(serializers.ModelSerializer):
             "domain",
             "first_admin_name",
             "first_admin_email",
+            "first_admin_joined",
             "country",
             "provisioning_error",
             "created_at",
@@ -204,6 +209,12 @@ class SchoolListSerializer(serializers.ModelSerializer):
         else:
             latest = obj.usage_snapshots.first()
         return _UsageSerializer(latest).data if latest else None
+
+    def get_first_admin_joined(self, obj):
+        if "joined" in self.context:
+            return self.context["joined"].get(obj.pk)
+        first_admin = self.context.get("first_admin")
+        return first_admin["joined"] if first_admin else None
 
 
 class SchoolDetailSerializer(SchoolListSerializer):
