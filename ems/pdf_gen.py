@@ -5,6 +5,7 @@ its own page. Both documents carry the configured institution branding header.
 """
 
 import io
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
@@ -21,6 +22,13 @@ from reportlab.platypus import (
 )
 
 from ems.branding import load_logo
+
+
+def _text(value, style) -> Paragraph:
+    """A Paragraph of plain text. reportlab parses Paragraph text as markup
+    (``<img src=...>`` fetches a URL or reads a local file), so school data
+    must never reach it unescaped."""
+    return Paragraph(escape(str(value or "")), style)
 
 
 def _styles():
@@ -61,21 +69,21 @@ def _branding(settings_obj, styles) -> list:
             pass
     name = (getattr(settings_obj, "institution_name", "") or "").strip()
     if name:
-        flow.append(Paragraph(name.upper(), styles["inst"]))
+        flow.append(_text(name.upper(), styles["inst"]))
     return flow
 
 
 def _hall_flowables(slot, settings_obj, styles) -> list:
     flow = _branding(settings_obj, styles)
-    flow.append(Paragraph(slot["title"], styles["title"]))
+    flow.append(_text(slot["title"], styles["title"]))
     cell = styles["cell"]
     data = [["Hall", "Class Name", "No. Of Students", "Matric Numbers"]]
     for r in slot["rows"]:
         data.append([
-            Paragraph(r["hall"], cell),
-            Paragraph(r["class_name"], cell),
+            _text(r["hall"], cell),
+            _text(r["class_name"], cell),
             str(r["count"]),
-            Paragraph(r["matric_range"], cell),
+            _text(r["matric_range"], cell),
         ])
     if not slot["rows"]:
         data.append([
@@ -101,13 +109,13 @@ def _hall_flowables(slot, settings_obj, styles) -> list:
 
 def _visa_flowables(slot, settings_obj, styles) -> list:
     flow = _branding(settings_obj, styles)
-    flow.append(Paragraph(slot["title"], styles["title"]))
+    flow.append(_text(slot["title"], styles["title"]))
     text = (
         ", ".join(slot["codes"])
         if slot["codes"]
         else "No classes scheduled for this slot."
     )
-    box = Table([[Paragraph(text, styles["visa"])]], colWidths=[176 * mm])
+    box = Table([[_text(text, styles["visa"])]], colWidths=[176 * mm])
     box.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 1, colors.black),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),

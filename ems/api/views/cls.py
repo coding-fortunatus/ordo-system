@@ -96,6 +96,10 @@ class ClassViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.Mo
         managed.assert_links_editable(cls)
         serializer = ClassCourseAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if serializer.would_create():
+            # A new course is a new record of the courses type: refuse it when
+            # the portal owns that type, as POST /api/courses/ does.
+            managed.assert_type_unsynced("courses")
         course = serializer.resolve_course()
         if cls.courses.filter(pk=course.pk).exists():
             raise Conflict(f"Course '{course.code}' is already in this class.")
@@ -125,7 +129,11 @@ class ClassViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.Mo
             cls.courses.remove(course)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # PATCH: edit course in class context (same constraints as global edit)
+        # PATCH: edit course in class context. Course rows are shared across
+        # departments, so editing one needs the same role as the global
+        # course edit (IsDataOfficer), not just access to this class.
+        if not request.user.can_manage_data:
+            raise PermissionDenied("Only data managers can edit courses.")
         serializer = CourseSerializer(course, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

@@ -268,7 +268,7 @@ class StaffCapTests(InviteTestCase, PlanMixin):
         make_department("bus")
         self.set_school(max_staff_users_override=2)
 
-        response = self.client.post("/api/users/seed-departments/", {}, format="json")
+        response = self.client.post("/api/users/seed-departments/", {"password": "Seed-Pass-4821"}, format="json")
 
         self.assertEqual(response.status_code, 403, response.data)
         self.assertEqual(User.objects.count(), 1)
@@ -441,7 +441,7 @@ class MoreStaffCapTests(LimitsTestCase):
         make_department("acc")
         self.set_school(max_staff_users_override=2)
 
-        response = self.client.post("/api/users/seed-departments/", {}, format="json")
+        response = self.client.post("/api/users/seed-departments/", {"password": "Seed-Pass-4821"}, format="json")
 
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["created"], ["acc@ems.com"])
@@ -451,7 +451,7 @@ class MoreStaffCapTests(LimitsTestCase):
         User.objects.create_user(email="acc@ems.com", password=PASSWORD)
         self.set_school(max_staff_users_override=2)
 
-        response = self.client.post("/api/users/seed-departments/", {}, format="json")
+        response = self.client.post("/api/users/seed-departments/", {"password": "Seed-Pass-4821"}, format="json")
 
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["skipped"], ["acc@ems.com"])
@@ -463,7 +463,7 @@ class MoreStaffCapTests(LimitsTestCase):
         self.set_school(max_staff_users_override=1)
 
         response = self.client.post(
-            "/api/users/seed-departments/", {"overwrite": True}, format="json"
+            "/api/users/seed-departments/", {"overwrite": True, "password": "Seed-Pass-4821"}, format="json"
         )
 
         self.assertEqual(response.status_code, 403, response.data)

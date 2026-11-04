@@ -71,10 +71,20 @@ class HallSerializer(serializers.ModelSerializer):
         return self._positive(v, "Capacity")
 
     def validate_rows(self, v):
-        return self._positive(v, "Rows")
+        v = self._positive(v, "Rows")
+        if v > seating_rules.MAX_ROWS:
+            raise serializers.ValidationError(
+                f"A hall can have at most {seating_rules.MAX_ROWS} rows."
+            )
+        return v
 
     def validate_columns(self, v):
-        return self._positive(v, "Columns")
+        v = self._positive(v, "Columns")
+        if v > seating_rules.MAX_COLUMNS:
+            raise serializers.ValidationError(
+                f"A hall can have at most {seating_rules.MAX_COLUMNS} columns."
+            )
+        return v
 
     def validate(self, attrs):
         row_seats = attrs.pop("row_seats", None)

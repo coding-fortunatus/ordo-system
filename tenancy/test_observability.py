@@ -426,6 +426,17 @@ class IngestTests(ObservabilityMixin, SchoolTestCase):
         self.assertEqual(self.report().status_code, 204)
         self.assertEqual(ErrorGroup.objects.get().count, 20)
 
+    def test_an_ip_over_its_limit_does_not_silence_the_school(self):
+        # Security audit F12: reports refused by the per IP limit must not
+        # spend the per school budget.
+        from django.conf import settings
+
+        attacker = SchoolClient(REMOTE_ADDR="198.51.100.66")
+        for _ in range(settings.OBS_JS_SCHOOL_PER_MIN + 1):
+            self.report(attacker)
+        self.report(SchoolClient(REMOTE_ADDR="203.0.113.200"), name="Real")
+        self.assertEqual(ErrorGroup.objects.count(), 2)
+
     def test_too_large_and_malformed_reports_are_refused(self):
         # covers: AC-5
         self.assertEqual(self.report(message="x" * 17 * 1024).status_code, 413)

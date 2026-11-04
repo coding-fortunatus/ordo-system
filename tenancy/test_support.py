@@ -205,6 +205,24 @@ class ExpiryAndEndTests(SupportTestCase):
         detail = PlatformAuditLog.objects.filter(action="support_ended").get().detail
         self.assertEqual(detail["reason"], "admin_deactivated")
 
+    def test_signing_an_admin_out_ends_their_sessions(self):
+        # Security audit F13: sign-out must cut the school support token too.
+        support_admin = self.make_admin("help@ordo.app", PlatformAdmin.Role.SUPPORT)
+        client = self.enter(self.sign_in(support_admin))
+        response = self.owner.post(f"/api/platform/admins/{support_admin.pk}/sign-out/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(client.get("/api/auth/me/").status_code, 401)
+        detail = PlatformAuditLog.objects.filter(action="support_ended").get().detail
+        self.assertEqual(detail["reason"], "admin_signed_out")
+
+    def test_resetting_an_admins_2fa_ends_their_sessions(self):
+        # Security audit F13.
+        support_admin = self.make_admin("help@ordo.app", PlatformAdmin.Role.SUPPORT)
+        client = self.enter(self.sign_in(support_admin))
+        response = self.owner.post(f"/api/platform/admins/{support_admin.pk}/reset-2fa/")
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(client.get("/api/auth/me/").status_code, 401)
+
     def test_the_sweep_records_sessions_that_ran_out(self):
         self.enter()
         with later(SUPPORT_SESSION_TTL + timedelta(minutes=1)):

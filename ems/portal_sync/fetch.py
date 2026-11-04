@@ -38,7 +38,8 @@ class FetchError(Exception):
 
     ``reason`` is one of: ``timeout``, ``connection_error``, ``http_status``,
     ``not_parseable``, ``rows_path_not_list``, ``address_blocked``,
-    ``too_large``, ``too_many_rows``, ``too_many_pages``, ``bad_next_link``.
+    ``too_large``, ``too_many_rows``, ``too_many_pages``, ``bad_next_link``,
+    ``no_secret``, ``secret_origin``.
     """
 
     def __init__(self, reason, message):
@@ -104,9 +105,19 @@ def resolve_public(host, port):
     return str(ips[0])
 
 
-def auth_headers(connection):
-    """The portal's auth header. The secret is decrypted here, for the
-    request only."""
+def auth_headers(connection, url):
+    """The portal's auth header for a request to ``url``. The secret is
+    decrypted here, for the request only, and only for an origin it was
+    entered for (see ``secrets.endpoint_url_set``)."""
+    if not connection.secret:
+        raise FetchError(
+            "no_secret", "Enter the portal's key again: the endpoint moved to a new host."
+        )
+    if not secrets.allowed_for(connection, url):
+        raise FetchError(
+            "secret_origin",
+            "The portal key wasn't entered for this endpoint's host. Enter the key again.",
+        )
     secret = secrets.reveal(connection)
     if connection.auth_type == "bearer":
         return {"Authorization": f"Bearer {secret}"}
@@ -287,7 +298,7 @@ def fetch_rows(endpoint, connection, *, budget=None, first_page_only=False, retr
     """Every row of ``endpoint`` across all its pages, or the first page's
     rows when ``first_page_only``. Raises ``FetchError``."""
     budget = budget or Budget()
-    headers = auth_headers(connection)
+    headers = auth_headers(connection, endpoint.url)
     rows = []
     with _client() as client:
         for page in _pages(client, endpoint, headers, budget, retry):

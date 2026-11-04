@@ -80,11 +80,15 @@ class LoginView(SignInView):
         lockout.check(email, audit.request_ip(request))
 
         admin = PlatformAdmin.objects.filter(email__iexact=email).first()
-        if admin is None:
-            # Same hashing work as a real check, so timing doesn't reveal
-            # whether the email exists.
+        if admin is None or not admin.is_active or not admin.has_usable_password():
+            # Same hashing work as a real check on every path that skips
+            # one (no such email, deactivated, invite not yet accepted), so
+            # timing doesn't reveal which of those an email is.
             make_password(password)
-        if admin is None or not admin.is_active or not admin.check_password(password):
+            ok = False
+        else:
+            ok = admin.check_password(password)
+        if not ok:
             audit.record(request, "login_failed", admin=admin, email=email)
             return Response(
                 {"detail": WRONG_CREDENTIALS}, status=status.HTTP_400_BAD_REQUEST
@@ -223,8 +227,7 @@ class AdminDetailView(PlatformView):
             setattr(target, field, new)
         if not target.is_active:
             # Their support visits end first (spec 0003, child 0006).
-            for session in support.open_sessions().filter(admin=target):
-                support.end(request, session, reason="admin_deactivated")
+            support.end_for_admin(request, target, reason="admin_deactivated")
         target.save(update_fields=list(changes))
         if not target.is_active:
             target.tokens.all().delete()
@@ -248,7 +251,9 @@ class AdminResetTwoFactorView(AdminActionView):
             raise Conflict("You can't reset your own two factor sign in.")
         with transaction.atomic():
             totp.clear(target)
-            # Signed out everywhere; they enrol a new device at next sign in.
+            # Signed out everywhere, school support visits included; they
+            # enrol a new device at next sign in.
+            support.end_for_admin(request, target, reason="admin_2fa_reset")
             target.tokens.all().delete()
             audit.record(request, "admin_2fa_reset", target_id=target.pk, email=target.email)
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -264,13 +264,19 @@ def _throttled(request, kind="js", ip_limit=None, school_limit=None):
     counted, so reports are dropped rather than let through unlimited."""
     minute = counters.minute_stamp(timezone.now())
     school = counters.school_key(capture.current_school_id())
-    by_ip = counters.hit(f"obs:{kind}:ip:{ingest_ip(request)}:{minute}", THROTTLE_TTL)
-    by_school = counters.hit(f"obs:{kind}:school:{school}:{minute}", THROTTLE_TTL)
-    if by_ip is None or by_school is None:
-        return True
     if ip_limit is None:
         ip_limit, school_limit = settings.OBS_JS_IP_PER_MIN, settings.OBS_JS_SCHOOL_PER_MIN
-    return by_ip > ip_limit or by_school > school_limit
+    by_ip = counters.hit(f"obs:{kind}:ip:{ingest_ip(request)}:{minute}", THROTTLE_TTL)
+    if by_ip is None:
+        return True
+    if by_ip > ip_limit:
+        # Refused by its own IP limit: don't spend the school's shared
+        # budget, or one client could silence the whole school's capture.
+        return True
+    by_school = counters.hit(f"obs:{kind}:school:{school}:{minute}", THROTTLE_TTL)
+    if by_school is None:
+        return True
+    return by_school > school_limit
 
 
 @csrf_exempt

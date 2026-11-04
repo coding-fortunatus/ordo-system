@@ -2481,3 +2481,55 @@ class DisconnectTests(PortalSyncTestCase):
         self.assertEqual(entry.metadata["released"]["students"], 2)
         self.assertNotIn(SECRET, json.dumps(entry.metadata))
         self.assertNotIn("M0001", json.dumps(entry.metadata))
+
+
+class SecretOriginTests(PortalSyncTestCase):
+    """Security audit F06: the write-only secret goes only to the host it
+    was entered for. Moving an endpoint elsewhere clears it."""
+
+    def setUp(self):
+        super().setUp()
+        self.endpoint_id = self.ready()
+        self.officer = User.objects.create_user(
+            email="do@test.localhost", password=PASSWORD,
+            role=User.Role.DATA_OFFICER, is_staff=True,
+        )
+        self.client.force_authenticate(self.officer)
+
+    def test_moving_an_endpoint_to_another_host_clears_the_secret(self):
+        response = self.client.patch(
+            f"/api/portal-sync/endpoints/{self.endpoint_id}/",
+            {"url": "https://attacker.example/x"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data["secret_cleared"])
+        connection = PortalConnection.objects.get()
+        self.assertEqual((connection.secret, connection.secret_origins), ("", []))
+
+        seen = []
+        with public_dns(), portal(serve({"data": []}, seen=seen)):
+            response = self.client.post(f"/api/portal-sync/endpoints/{self.endpoint_id}/test/")
+        self.assertNotEqual(response.status_code, 200)
+        self.assertEqual(seen, [])
+
+    def test_a_path_change_on_the_same_host_keeps_the_secret(self):
+        response = self.client.patch(
+            f"/api/portal-sync/endpoints/{self.endpoint_id}/",
+            {"url": "https://portal.example.edu/api/v2/students"}, format="json",
+        )
+        self.assertFalse(response.data["secret_cleared"])
+        seen = []
+        with public_dns(), portal(serve({"data": [row(1)]}, seen=seen)):
+            response = self.client.post(f"/api/portal-sync/endpoints/{self.endpoint_id}/test/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(seen[0].headers["X-API-Key"], SECRET)
+
+    def test_re_entering_the_secret_binds_it_to_the_new_host(self):
+        self.client.patch(
+            f"/api/portal-sync/endpoints/{self.endpoint_id}/",
+            {"url": "https://new-portal.example.edu/x"}, format="json",
+        )
+        self.assertEqual(self.connect().status_code, 200)
+        self.assertEqual(
+            PortalConnection.objects.get().secret_origins, ["https://new-portal.example.edu:443"]
+        )

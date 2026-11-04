@@ -109,14 +109,18 @@ def format_matric_range(matrics: list[str]) -> str:
 
 # --- Data builders --------------------------------------------------------
 
-def hall_summary_rows(date_obj, period: str) -> list[dict]:
-    """One row per (hall, class) for a slot, from generated seat allocation."""
+def hall_summary_rows(date_obj, period: str, department_id=None) -> list[dict]:
+    """One row per (hall, class) for a slot, from generated seat allocation.
+
+    ``department_id`` limits the rows to that department's classes."""
     qs = (
         SeatArrangement.objects.filter(
             date=date_obj, period=period, seat_number__isnull=False
         )
         .select_related("student", "hall", "cls", "cls__department")
     )
+    if department_id is not None:
+        qs = qs.filter(cls__department_id=department_id)
     groups: dict[tuple, dict] = {}
     for sa in qs:
         key = (sa.hall_id, sa.cls_id)
@@ -145,11 +149,12 @@ def hall_summary_rows(date_obj, period: str) -> list[dict]:
     return [row for _, row in keyed]
 
 
-def visa_groups(date_obj, period: str) -> list[dict]:
+def visa_groups(date_obj, period: str, department_id=None) -> list[dict]:
     """VISA codes for a slot, grouped by department.
 
     Returns ``[{department, department_name, codes: [...]}, ...]`` ordered by
     department code. Used by the on-screen preview's grouped table.
+    ``department_id`` limits it to that department's classes.
     """
     classes = (
         Class.objects.filter(
@@ -158,6 +163,8 @@ def visa_groups(date_obj, period: str) -> list[dict]:
         .select_related("department")
         .distinct()
     )
+    if department_id is not None:
+        classes = classes.filter(department_id=department_id)
     groups: dict[str, dict] = {}
     for cls in classes:
         code = cls.visa_label
@@ -194,19 +201,23 @@ def visa_codes(date_obj, period: str) -> list[str]:
 
 # --- Scope resolution -----------------------------------------------------
 
-def all_slots() -> list[tuple]:
-    """Every (date, period) in the timetable, ordered, AM before PM."""
-    pairs = TimeTable.objects.values_list("date", "period").distinct()
+def all_slots(department_id=None) -> list[tuple]:
+    """Every (date, period) in the timetable, ordered, AM before PM.
+    ``department_id`` keeps only slots that examine that department."""
+    pairs = TimeTable.objects.all()
+    if department_id is not None:
+        pairs = pairs.filter(class_obj__department_id=department_id)
+    pairs = pairs.values_list("date", "period").distinct()
     return sorted(
         {(d, p) for d, p in pairs},
         key=lambda dp: (dp[0], 0 if dp[1] == "AM" else 1),
     )
 
 
-def resolve_slots(scope: str, date_obj, period: str) -> list[tuple]:
+def resolve_slots(scope: str, date_obj, period: str, department_id=None) -> list[tuple]:
     if scope == "slot":
         return [(date_obj, period)]
-    slots = all_slots()
+    slots = all_slots(department_id)
     if scope == "week":
         start = date_obj - timedelta(days=date_obj.weekday())  # Monday
         end = start + timedelta(days=5)  # Saturday
@@ -214,21 +225,24 @@ def resolve_slots(scope: str, date_obj, period: str) -> list[tuple]:
     return slots  # duration
 
 
-def build_payload(doc: str, scope: str, date_obj, period: str) -> list[dict]:
-    """Structured per-slot data shared by the JSON preview and the PDF."""
+def build_payload(doc: str, scope: str, date_obj, period: str, department_id=None) -> list[dict]:
+    """Structured per-slot data shared by the JSON preview and the PDF.
+
+    ``department_id`` limits every slot and row to that department; the
+    views pass it for department officers (see :func:`payload_for`)."""
     out = []
-    for d, p in resolve_slots(scope, date_obj, period):
+    for d, p in resolve_slots(scope, date_obj, period, department_id):
         if doc == "hall":
             out.append(
                 {
                     "date": d.isoformat(),
                     "period": p,
                     "title": hall_directory_title(d, p),
-                    "rows": hall_summary_rows(d, p),
+                    "rows": hall_summary_rows(d, p, department_id),
                 }
             )
         else:
-            groups = visa_groups(d, p)
+            groups = visa_groups(d, p, department_id)
             out.append(
                 {
                     "date": d.isoformat(),
@@ -242,3 +256,18 @@ def build_payload(doc: str, scope: str, date_obj, period: str) -> list[dict]:
                 }
             )
     return out
+
+
+def payload_for(user, doc: str, scope: str, date_obj, period: str) -> list[dict]:
+    """:func:`build_payload` as ``user`` may see it.
+
+    Admin-side users see everything. Everyone else sees nothing while the
+    timetable is a draft, and afterwards only their own department; a
+    non-admin with no department sees nothing."""
+    from ems import publication
+
+    if user.is_staff:
+        return build_payload(doc, scope, date_obj, period)
+    if not user.department_id or not publication.visible_to(user):
+        return []
+    return build_payload(doc, scope, date_obj, period, user.department_id)

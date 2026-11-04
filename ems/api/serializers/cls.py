@@ -111,6 +111,13 @@ class ClassCourseAssignSerializer(serializers.Serializer):
         attrs["name"] = name
         return attrs
 
+    def would_create(self) -> bool:
+        """True when resolve_course would create a new Course row."""
+        data = self.validated_data
+        if data.get("course_id"):
+            return False
+        return not Course.objects.filter(code__iexact=data["code"]).exists()
+
     def resolve_course(self) -> Course:
         data = self.validated_data
         if data.get("course_id"):

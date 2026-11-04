@@ -1,5 +1,6 @@
 """The notification service, the inbox API and the live WebSocket push."""
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
 from django.db import connection
@@ -151,6 +152,26 @@ class NotificationSocketTests(SocketTestMixin, SchoolTestCase):
                 {"type": "notification", "notification": {"title": "Live"}},
             )
             await ws.disconnect()
+
+        async_to_sync(scenario)()
+
+    def test_a_revoked_token_stops_the_stream(self):
+        # Security audit F09: revocation after the handshake must stop
+        # delivery, not just future handshakes.
+        async def scenario():
+            ws = self.connect(self.token)
+            connected, _ = await ws.connect()
+            self.assertTrue(connected)
+            await ws.receive_json_from()
+
+            await database_sync_to_async(Token.objects.filter(key=self.token).delete)()
+            await get_channel_layer().group_send(
+                user_group("school_test", self.ada.pk),
+                {"type": "notification.new", "data": {"title": "After revoke"}},
+            )
+            output = await ws.receive_output()
+            self.assertEqual(output["type"], "websocket.close")
+            self.assertEqual(output["code"], 4401)
 
         async_to_sync(scenario)()
 

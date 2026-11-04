@@ -770,6 +770,10 @@ class PortalConnection(models.Model):
     header_name = models.CharField(max_length=100, blank=True, default="")
     secret = models.TextField()
     secret_last4 = models.CharField(max_length=4, blank=True, default="")
+    # Origins (scheme://host:port) the secret may be sent to: the endpoints'
+    # origins when it was entered. Moving an endpoint elsewhere clears the
+    # secret, so a write-only key can't be redirected to another host.
+    secret_origins = models.JSONField(default=list, blank=True)
     first_sync_approved_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"

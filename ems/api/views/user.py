@@ -1,5 +1,7 @@
 import csv
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
@@ -19,7 +21,6 @@ from ems.export_files import counted_export
 from ems.models import Department, User
 from tenancy import limits
 
-DEFAULT_SEED_PASSWORD = "Ems@2025"
 SEED_EMAIL_DOMAIN = "ems.com"
 
 
@@ -112,17 +113,24 @@ class UserViewSet(viewsets.ModelViewSet):
     def seed_departments(self, request):
         """Create one staff user per department.
 
-        Email is ``{department.slug}@ems.com``; password defaults to a
-        shared seed value but can be overridden in the request body.
-        Existing emails are skipped unless ``overwrite=true`` is sent,
-        in which case the password is reset.
+        Email is ``{department.slug}@ems.com``; the caller must supply the
+        password (there is no default: a shipped default is a publicly known
+        credential). Existing emails are skipped unless ``overwrite`` is true,
+        in which case the password is reset and any role is cleared.
+        Superusers and the caller's own account are never overwritten.
         """
-        password = (request.data.get("password") or DEFAULT_SEED_PASSWORD).strip()
-        if len(password) < 8:
-            raise ValidationError(
-                {"password": ["Password must be at least 8 characters."]}
-            )
-        overwrite = bool(request.data.get("overwrite", False))
+        password = (request.data.get("password") or "").strip()
+        if not password:
+            raise ValidationError({"password": ["Password is required."]})
+        try:
+            validate_password(password)
+        except DjangoValidationError as exc:
+            raise ValidationError({"password": list(exc.messages)}) from exc
+        overwrite = request.data.get("overwrite", False)
+        if isinstance(overwrite, str):
+            overwrite = overwrite.strip().lower() in ("true", "1", "yes", "on")
+        else:
+            overwrite = overwrite is True
 
         departments = list(Department.objects.all().order_by("name"))
         created: list[str] = []
@@ -146,10 +154,18 @@ class UserViewSet(viewsets.ModelViewSet):
                 first_name = (dept.name or dept.slug)[:30]
                 last_name = "Staff"
                 if existing:
-                    if overwrite:
+                    if overwrite and (existing.is_superuser or existing.pk == request.user.pk):
+                        # Never hand a shared password to a superuser or to
+                        # the admin running the seed.
+                        skipped.append(email)
+                    elif overwrite:
                         existing.first_name = first_name
                         existing.last_name = last_name
                         existing.department = dept
+                        # Authorization keys off ``role``; clearing only
+                        # is_staff would leave an admin role on an account
+                        # whose password is now shared.
+                        existing.role = None
                         existing.is_staff = False
                         existing.is_active = True
                         existing.set_password(password)

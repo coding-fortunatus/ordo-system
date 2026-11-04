@@ -147,7 +147,9 @@ class ClassStudentsUploadView(_BaseUploadView):
         if isinstance(f, Response):
             return f
         try:
-            result = upload_handlers.upload_class_students(f, cls)
+            result = upload_handlers.upload_class_students(
+                f, cls, cross_department=request.user.can_manage_data
+            )
         except upload_handlers.UploadError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)

@@ -59,7 +59,7 @@ class DirectoryPreviewView(APIView):
 
     def get(self, request):
         doc, scope, date_obj, period = _parse_params(request)
-        slots = directory.build_payload(doc, scope, date_obj, period)
+        slots = directory.payload_for(request.user, doc, scope, date_obj, period)
         return Response({"doc": doc, "scope": scope, "slots": slots})
 
 
@@ -79,7 +79,7 @@ class DirectoryExportView(APIView):
             raise ValidationError(
                 {"detail": f"fmt must be one of: {', '.join(sorted(_FORMATS))}."}
             )
-        payload = directory.build_payload(doc, scope, date_obj, period)
+        payload = directory.payload_for(request.user, doc, scope, date_obj, period)
 
         if fmt == "csv":
             content = directory_export.build_csv(doc, payload)

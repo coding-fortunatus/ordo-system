@@ -86,7 +86,12 @@ def _hall_shape(row, name) -> dict:
     if _blank(raw):
         if _blank(row.get("ROWS")) or _blank(row.get("COLS")):
             raise UploadError(f"Hall '{name}': give ROWS and COLS, or ROW_SEATS.")
-        return {"rows": int(row["ROWS"]), "columns": int(row["COLS"]), "layout": None}
+        try:
+            rows, cols = int(row["ROWS"]), int(row["COLS"])
+            seating_rules.check_grid(rows, cols)
+        except ValueError as exc:
+            raise UploadError(f"Hall '{name}': {exc}") from exc
+        return {"rows": rows, "columns": cols, "layout": None}
     align = "left" if _blank(row.get("ALIGN")) else str(row["ALIGN"])
     try:
         counts = [
@@ -232,7 +237,13 @@ def upload_class_courses(file, cls: Class) -> dict[str, int]:
     return {"created": added, "updated": len(codes_in_file) - added}
 
 
-def upload_class_students(file, cls: Class) -> dict[str, int]:
+def upload_class_students(file, cls: Class, *, cross_department: bool = True) -> dict[str, int]:
+    """Create or update ``cls``'s students from a CSV.
+
+    ``cross_department`` False (any uploader who is not a data manager)
+    refuses the whole file when a matric number already belongs to a
+    student of another department: re-uploading would move and overwrite
+    a student the uploader has no access to."""
     # Read identifiers as text. Left to inference, one blank cell turns the
     # column into floats and astype(str) below then stores "2520320002.0".
     df = _read_csv(file, dtype={"MATRIC NUMBER": str, "PHONE NUMBER": str})
@@ -275,6 +286,16 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
                 "level_id",
             )
         }
+        if not cross_department:
+            foreign = sorted(
+                m for m, s in existing.items() if s.department_id != cls.department_id
+            )
+            if foreign:
+                shown = ", ".join(foreign[:5]) + (" …" if len(foreign) > 5 else "")
+                raise UploadError(
+                    f"{len(foreign)} matric number(s) belong to students of another "
+                    f"department ({shown}). Ask a data officer to move them."
+                )
 
         to_create: list[Student] = []
         to_update: list[Student] = []

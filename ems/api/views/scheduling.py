@@ -367,6 +367,8 @@ class DistributionStatisticsView(APIView):
             return Response({"detail": "date and period are required."}, status=400)
 
         distributions = Distribution.objects.filter(date=date, period=period)
+        if not publication.visible_to(request.user):
+            distributions = distributions.none()
         agg = distributions.aggregate(
             total_halls=Count("id", distinct=True),
         )

@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
 
-from tenancy import audit, lockout, totp
+from tenancy import audit, lockout, support, totp
 from tenancy.auth import ChallengeExpired
 from tenancy.models import PlatformAdmin
 from tenancy.permissions import IsPlatformOwner
@@ -150,7 +150,10 @@ class AdminSignOutView(PlatformView):
 
     def post(self, request, pk):
         target = get_object_or_404(PlatformAdmin, pk=pk)
-        ended = target.tokens.all().delete()[0]
+        with transaction.atomic():
+            # A school support token is a session too (a lost laptop holds it).
+            support.end_for_admin(request, target, reason="admin_signed_out")
+            ended = target.tokens.all().delete()[0]
         audit.record(
             request, "admin_signed_out", target_id=target.pk, email=target.email, ended=ended
         )

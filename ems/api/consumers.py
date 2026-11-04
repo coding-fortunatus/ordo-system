@@ -1,6 +1,7 @@
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
+from ems.api.auth_ws import still_valid
 from ems.models import BackgroundJob
 from ems.notifications import job_group, unread_count, user_group
 from tenancy.ws import ObservedConsumerMixin, in_school
@@ -27,6 +28,7 @@ class JobProgressConsumer(ObservedConsumerMixin, AsyncJsonWebsocketConsumer):
         if not user.is_staff and snapshot["created_by_id"] != user.id:
             await self.close(code=4403)
             return
+        self.owner_id = snapshot["created_by_id"]
         self.group_name = job_group(self.scope["school"].schema_name, self.job_id)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
@@ -38,7 +40,17 @@ class JobProgressConsumer(ObservedConsumerMixin, AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(group, self.channel_name)
 
     async def job_progress(self, event):
+        # Authorization is re-checked per event: a token revoked after the
+        # handshake (logout, password change, support end, role removal)
+        # must stop the stream, not just future handshakes.
+        if not await self._still_valid():
+            await self.close(code=4401)
+            return
         await self.send_json(event["data"])
+
+    @database_sync_to_async
+    def _still_valid(self):
+        return still_valid(self.scope, staff_or_owner_id=self.owner_id)
 
     @database_sync_to_async
     def _fetch_snapshot(self):
@@ -97,7 +109,14 @@ class NotificationConsumer(ObservedConsumerMixin, AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(group, self.channel_name)
 
     async def notification_new(self, event):
+        if not await self._still_valid():
+            await self.close(code=4401)
+            return
         await self.send_json({"type": "notification", "notification": event["data"]})
+
+    @database_sync_to_async
+    def _still_valid(self):
+        return still_valid(self.scope)
 
     @database_sync_to_async
     def _unread(self, user):

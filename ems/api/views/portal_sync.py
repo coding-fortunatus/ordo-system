@@ -32,7 +32,7 @@ from ems.models import (
 )
 from ems.portal_sync import deletes
 from ems.portal_sync import fields as ordo_fields
-from ems.portal_sync import runs
+from ems.portal_sync import runs, secrets
 from ems.portal_sync.fetch import FetchError, cell, columns, fetch_rows
 from tenancy.permissions import requires_feature
 
@@ -172,6 +172,7 @@ class EndpointListView(_PortalSyncView):
         )
         with transaction.atomic():
             serializer.save(connection=connection)
+            secret_cleared = secrets.endpoint_url_set(connection, serializer.instance.url)
             runs.reset_approval(connection)
         endpoint = serializer.instance
         set_audit(
@@ -179,8 +180,12 @@ class EndpointListView(_PortalSyncView):
             f"Added portal endpoint ({endpoint.kind})",
             object_type=ENDPOINT,
             object_id=endpoint.pk,
+            **({"secret_cleared": True} if secret_cleared else {}),
         )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            {**serializer.data, "secret_cleared": secret_cleared},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class EndpointDetailView(_PortalSyncView):
@@ -200,6 +205,7 @@ class EndpointDetailView(_PortalSyncView):
         before = {f: getattr(endpoint, f) for f in _PREVIEWED}
         with transaction.atomic():
             serializer.save()
+            secret_cleared = secrets.endpoint_url_set(endpoint.connection, endpoint.url)
             if any(getattr(endpoint, f) != v for f, v in before.items()):
                 runs.reset_approval(endpoint.connection)
         set_audit(
@@ -208,8 +214,9 @@ class EndpointDetailView(_PortalSyncView):
             object_type=ENDPOINT,
             object_id=endpoint.pk,
             changed=sorted(set(serializer.validated_data)),
+            **({"secret_cleared": True} if secret_cleared else {}),
         )
-        return Response(serializer.data)
+        return Response({**serializer.data, "secret_cleared": secret_cleared})
 
     def delete(self, request, pk):
         endpoint = self._endpoint(pk)

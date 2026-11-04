@@ -88,13 +88,34 @@ def _sweep(rows: int, cols: int, seat_order: str):
             yield r, c
 ALIGNMENTS = ("left", "center", "right")
 
+# A hall's grid is materialised cell by cell (HallLayout) and cached per
+# process, so its size must be bounded: one oversized hall would otherwise
+# exhaust memory in the shared web and worker processes.
+MAX_ROWS = 200
+MAX_COLUMNS = 200
+MAX_CELLS = 20_000
+
+
+def check_grid(rows, cols) -> None:
+    """``ValueError`` (fit for the user) when ``rows x cols`` is too big."""
+    rows, cols = int(rows or 0), int(cols or 0)
+    if rows > MAX_ROWS:
+        raise ValueError(f"A hall can have at most {MAX_ROWS} rows.")
+    if cols > MAX_COLUMNS:
+        raise ValueError(f"A hall can have at most {MAX_COLUMNS} columns.")
+    if rows * cols > MAX_CELLS:
+        raise ValueError(f"A hall can have at most {MAX_CELLS:,} cells (rows x columns).")
+
 
 def normalise_mask(rows: int, cols: int, mask):
     """``mask`` checked against ``rows x cols`` and returned as a tuple, or
     ``None`` when it is empty or every cell is a seat (a full rectangle keeps
     the fast path). Raises ``ValueError`` with a message fit for the user."""
+    check_grid(rows, cols)
     if not mask:
         return None
+    if len(mask) > MAX_ROWS:
+        raise ValueError(f"A hall can have at most {MAX_ROWS} rows.")
     mask = tuple(str(line).upper() for line in mask)
     if len(mask) != rows:
         raise ValueError(f"Layout has {len(mask)} rows but the hall has {rows}.")
@@ -118,7 +139,12 @@ def mask_from_row_seats(row_seats, align: str = "left"):
     """``(rows, cols, mask)`` for a hall given as seats per row, front row
     first. ``align`` places each short row against the ``left`` wall, the
     ``right`` wall, or in the ``center``."""
+    row_seats = list(row_seats)
+    if len(row_seats) > MAX_ROWS:
+        raise ValueError(f"A hall can have at most {MAX_ROWS} rows.")
     row_seats = [int(n) for n in row_seats]
+    if row_seats and max(row_seats) > MAX_COLUMNS:
+        raise ValueError(f"A hall can have at most {MAX_COLUMNS} columns.")
     if not row_seats or any(n < 0 for n in row_seats) or max(row_seats) <= 0:
         raise ValueError("Seats per row must be whole numbers with at least one seat.")
     align = (align or "left").strip().lower()
@@ -136,7 +162,7 @@ def mask_from_row_seats(row_seats, align: str = "left"):
 def row_seats(rows: int, cols: int, mask=None) -> list:
     """Seats in each row, front row first."""
     if mask is None:
-        return [max(cols, 0)] * max(rows, 0)
+        return [max(cols, 0)] * min(max(rows, 0), MAX_ROWS)
     return [line.count(SEAT) for line in mask]
 
 
@@ -149,6 +175,8 @@ class HallLayout:
     def __init__(self, rows: int, cols: int, mask=None, seat_order=DEFAULT_SEAT_ORDER):
         self.rows = max(rows or 0, 0)
         self.cols = max(cols or 0, 0)
+        # Rows stored before the limits existed must not materialise either.
+        check_grid(self.rows, self.cols)
         self.mask = mask
         self.seat_order = seat_order
         # In seat order, so position i holds seat number i + 1.

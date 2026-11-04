@@ -148,6 +148,19 @@ def redeem(request, ticket):
     return session, token
 
 
+def end_for_admin(request, admin, reason):
+    """End every open support session of ``admin``; returns how many.
+    Any revocation of a platform admin (deactivation, sign-out, 2FA reset)
+    must call this, or their school support token outlives it.
+
+    Locks the session rows; call inside a transaction."""
+    ended = 0
+    for session in open_sessions().filter(admin=admin):
+        end(request, session, reason=reason)
+        ended += 1
+    return ended
+
+
 def end(request, session, reason="ended"):
     """End ``session`` now and cut off its token. 409 if it already ended.
 

@@ -96,6 +96,15 @@ class PublicFormTests(DemoRequestTestCase):
         self.assertEqual(response.data["code"], "rate_limited")
         self.assertEqual(self.submit(ip="198.51.100.2").status_code, 201)
 
+    def test_a_refused_address_does_not_spend_the_shared_budget(self):
+        # Security audit F11: one IP hammering past its own cap must not
+        # lock every other visitor out for the hour.
+        from tenancy.demo_requests import TOTAL_PER_HOUR
+
+        for _ in range(PER_IP_PER_HOUR + TOTAL_PER_HOUR + 5):
+            self.submit()
+        self.assertEqual(self.submit(ip="203.0.113.200").status_code, 201)
+
     def test_the_status_and_notes_cannot_be_set_from_outside(self):
         self.submit(status="converted", notes="vip")
         demo = DemoRequest.objects.get()

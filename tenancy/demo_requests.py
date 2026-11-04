@@ -48,10 +48,16 @@ def _throttled(ip):
     lost lead costs more than a few extra emails, so the request goes in."""
     hour = timezone.now().strftime("%Y%m%d%H")
     by_ip = counters.hit(f"demo:ip:{ip or 'unknown'}:{hour}", THROTTLE_TTL)
-    total = counters.hit(f"demo:all:{hour}", THROTTLE_TTL)
-    if by_ip is None or total is None:
+    if by_ip is None:
         return False
-    return by_ip > PER_IP_PER_HOUR or total > TOTAL_PER_HOUR
+    if by_ip > PER_IP_PER_HOUR:
+        # Refused by its own IP cap: don't spend the shared budget, or one
+        # client could lock every visitor out for the hour.
+        return True
+    total = counters.hit(f"demo:all:{hour}", THROTTLE_TTL)
+    if total is None:
+        return False
+    return total > TOTAL_PER_HOUR
 
 
 class PublicDemoRequestSerializer(serializers.ModelSerializer):

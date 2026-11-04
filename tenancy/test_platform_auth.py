@@ -145,6 +145,29 @@ class LoginTests(PlatformTestCase):
         resolve("/api/platform/me/", urlconf=settings.PUBLIC_SCHEMA_URLCONF)
 
 
+class LoginTimingTests(PlatformTestCase):
+    """Security audit F14: every failing path does the same hashing work,
+    so timing doesn't tell a pending invite or deactivated admin apart."""
+
+    def hashes_on_failure(self, email):
+        with mock.patch("tenancy.views.make_password") as dummy:
+            response = self.login(email, password="wrong-password-123")
+        self.assertEqual(response.status_code, 400)
+        return dummy.called
+
+    def test_unknown_inactive_and_invited_emails_all_hash(self):
+        inactive = self.make_admin("inactive@ordo.app")
+        inactive.is_active = False
+        inactive.save()
+        invited = PlatformAdmin(email="invited@ordo.app", name="invited", role=PlatformAdmin.Role.SUPPORT)
+        invited.set_unusable_password()
+        invited.save()
+
+        self.assertTrue(self.hashes_on_failure("nobody@ordo.app"))
+        self.assertTrue(self.hashes_on_failure("inactive@ordo.app"))
+        self.assertTrue(self.hashes_on_failure("invited@ordo.app"))
+
+
 class LockoutTests(PlatformTestCase):
     def test_five_failures_lock_the_email_until_an_owner_unlocks(self):
         locked = self.make_admin("support@ordo.app", role=PlatformAdmin.Role.SUPPORT)

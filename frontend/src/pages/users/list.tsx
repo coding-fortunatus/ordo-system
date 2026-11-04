@@ -543,13 +543,13 @@ function SeedDepartmentUsersDialog({
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<SeedValues>({
     resolver: zodResolver(seedSchema),
-    defaultValues: { password: "Ems@2025", overwrite: false },
+    defaultValues: { password: "", overwrite: false },
   });
   const seed = useSeedDepartmentUsers();
 
   useEffect(() => {
     if (open) {
-      form.reset({ password: "Ems@2025", overwrite: false });
+      form.reset({ password: "", overwrite: false });
       setTopError(null);
     }
   }, [open, form]);
@@ -595,7 +595,9 @@ function SeedDepartmentUsersDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Shared password</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
+                  <FormControl>
+                    <Input type="password" autoComplete="new-password" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
