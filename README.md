@@ -29,7 +29,7 @@ The documentation reflects the behavior and configuration found in the current r
 | `frontend/` | Dashboard web application (apex domain). The marketing site lives in a separate repo, `ordo-site`. |
 | `ems/` | Examination-management domain and service implementation |
 | `core/` | Application configuration and runtime setup |
-| `docs/` | Product, marketing, and technical documentation. Start with `docs/school-app-feature-specification.md` for the full list of school-facing features. |
+| `docs/` | Product, marketing, and technical documentation. Start with `docs/school-app-feature-specification.md` for the full list of school-facing features. `docs/legal/` holds the draft terms and policies for the website and for onboarding schools, indexed in `docs/legal/legal-and-policy-register.md`. |
 | `testing/` | Exploratory testing resources |
 | `.env.example` | Local development settings. Copy to `.env`. Production uses `deploy/.env.prod.example`. |
 
