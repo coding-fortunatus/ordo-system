@@ -130,7 +130,7 @@ FEATURES_DATA: dict[str, dict] = {
         "capabilities": [
             "Add, edit and delete any record",
             "Bulk upload from CSV, with every row checked",
-            "Upload several files at once in a ZIP",
+            "Upload departments, halls, courses, classes and students, one CSV at a time",
             "Spots duplicates before they cause problems",
             "Locks uploads once the timetable is made, so nothing shifts underneath it",
         ],
