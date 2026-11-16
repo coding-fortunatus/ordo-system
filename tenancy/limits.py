@@ -57,7 +57,7 @@ class FeatureDisabled(CodedAPIException):
 FEATURE_LABELS = {
     "distribution": "Distribution",
     "seat_allocation": "Seat allocation",
-    "exports": "Exports",
+    "exports": "Broadsheet and bulk attendance sheets",
     "publication": "Timetable publishing",
     "branding": "Custom branding",
     "portal_sync": "Portal sync",
@@ -80,6 +80,18 @@ JOB_FEATURES = {
     "allocation": "seat_allocation",
     "allocation_all": "seat_allocation",
 }
+
+
+# Readiness stages that report on a gated stage. Timetable needs none.
+STAGE_FEATURES = {
+    "distribution": "distribution",
+    "allocation": "seat_allocation",
+}
+
+
+def assert_feature_for_stage(stage):
+    if key := STAGE_FEATURES.get(stage):
+        assert_feature(key)
 
 
 def assert_feature_for_job(job_type):

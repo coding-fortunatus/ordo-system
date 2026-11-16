@@ -13,7 +13,7 @@ export type FeatureKey =
 export const FEATURE_LABELS: Record<FeatureKey, string> = {
   distribution: "Distribution",
   seat_allocation: "Seat allocation",
-  exports: "Exports",
+  exports: "Broadsheet and bulk attendance sheets",
   publication: "Timetable publication",
   branding: "Branding",
   portal_sync: "Portal sync",

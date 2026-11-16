@@ -124,15 +124,19 @@ export interface PlanRow {
   name: string;
   max_students: number | null;
   max_staff_users: number | null;
+  /** Whole naira per academic session; null is priced by quotation. */
+  price: number | null;
   features: FeatureKey[];
   is_active: boolean;
   /** Schools on this plan. */
   school_count: number;
+  /** No school row at all uses it (closed schools and the platform count). */
+  deletable: boolean;
 }
 
 export type PlanInput = Pick<
   PlanRow,
-  "code" | "name" | "max_students" | "max_staff_users" | "features" | "is_active"
+  "code" | "name" | "max_students" | "max_staff_users" | "price" | "features" | "is_active"
 >;
 
 const PLANS = ["platform", "plans"] as const;
@@ -160,11 +164,15 @@ function usePlanMutation<TVars>(fn: (vars: TVars) => Promise<unknown>) {
 export const useCreatePlan = () =>
   usePlanMutation((input: PlanInput) => platformApi.post<PlanRow>("/plans/", input));
 
-/** Any field but the code, which never changes. Plans are deactivated, never deleted. */
+/** Any field, the code included (schools hold their plan by id). ``is_active`` false archives it. */
 export const useUpdatePlan = () =>
-  usePlanMutation(({ id, ...input }: Partial<Omit<PlanInput, "code">> & { id: number }) =>
+  usePlanMutation(({ id, ...input }: Partial<PlanInput> & { id: number }) =>
     platformApi.patch<PlanRow>(`/plans/${id}/`, input),
   );
+
+/** Delete a plan no school uses; the server refuses one in use (409). */
+export const useDeletePlan = () =>
+  usePlanMutation((id: number) => platformApi.delete(`/plans/${id}/`));
 
 export type SchoolStatus =
   | "provisioning"

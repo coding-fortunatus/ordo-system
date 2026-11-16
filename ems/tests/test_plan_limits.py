@@ -309,6 +309,31 @@ class FeatureTests(LimitsTestCase):
             self.assertEqual(response.status_code, 403, path)
             self.assertEqual(response.data["code"], "feature_disabled", path)
 
+    def test_readiness_for_a_gated_stage_needs_its_feature(self):
+        self.turn_off("distribution", "seat_allocation")
+
+        for stage in ("distribution", "allocation"):
+            response = self.client.get(f"/api/readiness/?stage={stage}")
+            self.assertEqual(response.status_code, 403, stage)
+            self.assertEqual(response.data["code"], "feature_disabled", stage)
+        self.assertEqual(self.client.get("/api/readiness/?stage=timetable").status_code, 200)
+
+    def test_the_hall_directory_needs_seat_allocation_but_visa_does_not(self):
+        self.turn_off("seat_allocation")
+
+        for path in [
+            "/api/directory/preview/?doc=hall&scope=duration",
+            "/api/directory/export/?doc=hall&scope=duration&fmt=csv",
+        ]:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 403, path)
+            self.assertEqual(response.data["code"], "feature_disabled", path)
+        for path in [
+            "/api/directory/preview/?doc=visa&scope=duration",
+            "/api/directory/export/?doc=visa&scope=duration&fmt=csv",
+        ]:
+            self.assertEqual(self.client.get(path).status_code, 200, path)
+
     def test_retrying_a_distribution_job_needs_distribution(self):
         self.turn_off("distribution", "seat_allocation")
         job = BackgroundJob.objects.create(
@@ -520,8 +545,8 @@ class FeatureEdgeTests(LimitsTestCase):
 
         for path in [
             "/api/timetable/",
-            "/api/readiness/?stage=allocation",
-            "/api/distribution/",
+            "/api/readiness/?stage=timetable",
+            "/api/directory/preview/?doc=visa&scope=duration",
             "/api/exports/timetable/",
             "/api/system/branding/",
             "/api/school/",
@@ -585,9 +610,9 @@ class FeatureEdgeTests(LimitsTestCase):
         self.set_school(features_override=[])
 
         limits.assert_feature_for_job("timetable")
-        limits.assert_feature_for_job("distribution_all")
-        with self.assertRaises(limits.FeatureDisabled):
-            limits.assert_feature_for_job("allocation_all")
+        for job_type in ("distribution_all", "allocation_all"):
+            with self.assertRaises(limits.FeatureDisabled):
+                limits.assert_feature_for_job(job_type)
 
 
 class ErrorEnvelopeTests(LimitsTestCase):

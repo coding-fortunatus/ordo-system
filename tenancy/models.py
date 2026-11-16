@@ -34,13 +34,16 @@ def validate_feature_keys(value):
 
 
 class Plan(models.Model):
-    """A tier of limits and features. Deactivated, never deleted."""
+    """A tier of limits and features. Archived (``is_active`` false) while
+    schools are on it; deleted only once no school row points at it."""
 
     code = models.SlugField(unique=True)
     name = models.CharField(max_length=100)
     # Null means unlimited.
     max_students = models.PositiveIntegerField(null=True, blank=True)
     max_staff_users = models.PositiveIntegerField(null=True, blank=True)
+    # Whole naira per academic session. Null means priced by quotation.
+    price = models.PositiveBigIntegerField(null=True, blank=True)
     features = models.JSONField(default=list, validators=[validate_feature_keys])
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

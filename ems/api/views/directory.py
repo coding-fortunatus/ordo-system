@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from ems import directory, directory_export, pdf_gen
 from ems.api.views.system import _get_or_create_settings
 from ems.export_files import counted_export
+from tenancy import limits
 
 _DOC_CHOICES = {"hall", "visa"}
 _SCOPE_CHOICES = {"slot", "week", "duration"}
@@ -49,6 +50,9 @@ def _parse_params(request):
         raise ValidationError(
             {"detail": "date is required for 'slot' and 'week' scope."}
         )
+    if doc == "hall":
+        # The Hall Directory is built from seat allocation; VISA is not.
+        limits.assert_feature("seat_allocation")
     return doc, scope, date_obj, period
 
 

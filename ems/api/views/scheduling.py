@@ -30,6 +30,7 @@ from ems.utils import (
     hall_effective_capacity,
     slot_relaxed_course_id,
 )
+from tenancy import limits
 from tenancy.permissions import requires_feature
 
 
@@ -49,6 +50,8 @@ class ReadinessView(APIView):
             raise ValidationError(
                 {"detail": f"stage must be one of: {', '.join(readiness.STAGES)}."}
             )
+        # A stage the plan can't run has nothing to be ready for.
+        limits.assert_feature_for_stage(stage)
         date = request.query_params.get("date")
         period = request.query_params.get("period")
         if bool(date) != bool(period):

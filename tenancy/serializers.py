@@ -130,14 +130,18 @@ def _checked_features(value):
 class PlanSerializer(serializers.ModelSerializer):
     """A plan as the console lists it, and its create and edit form.
 
-    The code is fixed once the plan exists. ``school_count`` is annotated by
-    the list view.
+    The code can be changed: schools hold their plan by id, so a new code
+    moves nothing. ``price`` is whole naira per academic session, null for
+    priced by quotation. ``school_count`` and ``deletable`` are annotated by
+    ``school_views.plans``.
     """
 
     max_students = serializers.IntegerField(min_value=0, allow_null=True, required=False)
     max_staff_users = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    price = serializers.IntegerField(min_value=0, allow_null=True, required=False)
     features = _feature_list(required=False)
     school_count = serializers.IntegerField(read_only=True)
+    deletable = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Plan
@@ -147,15 +151,12 @@ class PlanSerializer(serializers.ModelSerializer):
             "name",
             "max_students",
             "max_staff_users",
+            "price",
             "features",
             "is_active",
             "school_count",
+            "deletable",
         ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance is not None and not isinstance(self.instance, (list, tuple)):
-            self.fields["code"].read_only = True
 
     def validate_features(self, value):
         return _checked_features(value)

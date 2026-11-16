@@ -9,6 +9,7 @@ import {
   type DirectoryScope,
   type Period,
 } from "@/api/directory";
+import { useHasFeature } from "@/api/school";
 import { useTimetableDates } from "@/api/scheduling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,11 @@ const SCOPES: { value: DirectoryScope; label: string }[] = [
 
 export default function DirectoryPage() {
   const dates = useTimetableDates();
-  const [doc, setDoc] = useState<DirectoryDoc>("hall");
+  // The Hall Summary is built from seat allocation, so a plan without it
+  // only gets the VISA tab (the server refuses the hall document too).
+  const seating = useHasFeature("seat_allocation");
+  const [chosenDoc, setDoc] = useState<DirectoryDoc>("hall");
+  const doc: DirectoryDoc = seating ? chosenDoc : "visa";
   const [scope, setScope] = useState<DirectoryScope>("slot");
   const [date, setDate] = useState<string | undefined>();
   const [period, setPeriod] = useState<Period>("AM");
@@ -89,10 +94,12 @@ export default function DirectoryPage() {
 
       <Tabs value={doc} onValueChange={(v) => setDoc(v as DirectoryDoc)}>
         <TabsList variant="line">
-          <TabsTrigger value="hall">
-            <Building2 />
-            Hall Summary
-          </TabsTrigger>
+          {seating && (
+            <TabsTrigger value="hall">
+              <Building2 />
+              Hall Summary
+            </TabsTrigger>
+          )}
           <TabsTrigger value="visa">
             <Stamp />
             VISA

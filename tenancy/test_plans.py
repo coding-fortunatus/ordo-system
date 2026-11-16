@@ -29,6 +29,7 @@ class PlanTests(SchoolConsoleTestCase):
         self.assertEqual(response.data["features"], ["distribution", "exports", "seat_allocation"])
         self.assertEqual(response.data["school_count"], 0)
         self.assertTrue(response.data["is_active"])
+        self.assertIsNone(response.data["price"])
         entry = PlatformAuditLog.objects.get(action="plan_created")
         self.assertEqual(entry.detail["code"], "pro")
 
@@ -39,6 +40,7 @@ class PlanTests(SchoolConsoleTestCase):
             ({"features": ["seat_allocation"]}, "features"),
             ({"max_students": -1}, "max_students"),
             ({"code": "starter"}, "code"),
+            ({"price": -1}, "price"),
         ]:
             response = self.create_plan(**overrides)
             self.assertEqual(response.status_code, 400, overrides)
@@ -55,21 +57,104 @@ class PlanTests(SchoolConsoleTestCase):
         response = support.patch(f"/api/platform/plans/{plan.pk}/", {"name": "X"}, format="json")
         self.assertEqual(response.status_code, 403)
 
-    def test_editing_a_plan_keeps_its_code_and_deactivates_but_never_deletes(self):
+    def test_editing_a_plan_changes_its_code_and_archives_it(self):
         # covers: AC-26
         plan = Plan.objects.get(code="starter")
         url = f"/api/platform/plans/{plan.pk}/"
 
         response = self.owner.patch(
-            url, {"code": "other", "max_students": 300, "is_active": False}, format="json"
+            url,
+            {"code": "basic", "max_students": 300, "price": 1_500_000, "is_active": False},
+            format="json",
         )
 
         self.assertEqual(response.status_code, 200, response.data)
         plan.refresh_from_db()
-        self.assertEqual((plan.code, plan.max_students, plan.is_active), ("starter", 300, False))
+        self.assertEqual(
+            (plan.code, plan.max_students, plan.price, plan.is_active),
+            ("basic", 300, 1_500_000, False),
+        )
         entry = PlatformAuditLog.objects.get(action="plan_updated")
-        self.assertEqual(entry.detail["changes"]["max_students"], [None, 300])
-        self.assertEqual(self.owner.delete(url).status_code, 405)
+        self.assertEqual(entry.detail["code"], "starter")
+        self.assertEqual(entry.detail["changes"]["code"], ["starter", "basic"])
+        self.assertEqual(entry.detail["changes"]["price"], [None, 1_500_000])
+
+    def test_a_code_change_keeps_the_schools_on_the_plan(self):
+        self.assertEqual(self.create().status_code, 202)
+        school = School.objects.get(slug="unilag")
+        plan = school.plan
+
+        response = self.owner.patch(
+            f"/api/platform/plans/{plan.pk}/", {"code": "renamed"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["school_count"], 1)
+        school.refresh_from_db()
+        self.assertEqual(school.plan.code, "renamed")
+
+    def test_a_code_already_taken_is_refused_on_edit(self):
+        self.assertEqual(self.create_plan().status_code, 201)
+        plan = Plan.objects.get(code="starter")
+
+        response = self.owner.patch(
+            f"/api/platform/plans/{plan.pk}/", {"code": "pro"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("code", response.data["errors"])
+        plan.refresh_from_db()
+        self.assertEqual(plan.code, "starter")
+
+    def test_an_unused_plan_is_deleted(self):
+        self.assertEqual(self.create_plan().status_code, 201)
+        plan = Plan.objects.get(code="pro")
+        listed = {p["code"]: p for p in self.owner.get("/api/platform/plans/").data}
+        self.assertTrue(listed["pro"]["deletable"])
+
+        response = self.owner.delete(f"/api/platform/plans/{plan.pk}/")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Plan.objects.filter(pk=plan.pk).exists())
+        entry = PlatformAuditLog.objects.get(action="plan_deleted")
+        self.assertEqual(entry.detail["code"], "pro")
+
+    def test_a_plan_with_schools_is_archived_not_deleted(self):
+        self.assertEqual(self.create().status_code, 202)
+        plan = School.objects.get(slug="unilag").plan
+        url = f"/api/platform/plans/{plan.pk}/"
+        listed = {p["code"]: p for p in self.owner.get("/api/platform/plans/").data}
+        self.assertFalse(listed[plan.code]["deletable"])
+
+        response = self.owner.delete(url)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Archive it instead", response.data["detail"])
+        self.assertTrue(Plan.objects.filter(pk=plan.pk).exists())
+        self.assertEqual(self.owner.patch(url, {"is_active": False}, format="json").status_code, 200)
+
+    def test_the_platform_plan_is_never_deleted(self):
+        plan = Plan.objects.get(code="platform")
+        listed = {p["code"]: p for p in self.owner.get("/api/platform/plans/").data}
+        self.assertFalse(listed["platform"]["deletable"])
+
+        response = self.owner.delete(f"/api/platform/plans/{plan.pk}/")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(Plan.objects.filter(pk=plan.pk).exists())
+
+    def test_support_cant_delete_a_plan(self):
+        self.assertEqual(self.create_plan().status_code, 201)
+        plan = Plan.objects.get(code="pro")
+
+        support = self.sign_in(
+            self.make_admin("support@ordo.app", role=PlatformAdmin.Role.SUPPORT)
+        )
+
+        response = support.delete(f"/api/platform/plans/{plan.pk}/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Plan.objects.filter(pk=plan.pk).exists())
 
     def test_the_list_counts_schools_but_not_the_public_row(self):
         self.assertEqual(self.create().status_code, 202)

@@ -50,6 +50,7 @@ export const ACTION_LABELS: Record<string, string> = {
   school_purged: "School data purged",
   plan_created: "Created a plan",
   plan_updated: "Changed a plan",
+  plan_deleted: "Deleted a plan",
   support_ticket_issued: "Opened a support link",
   support_started: "Entered a school as support",
   support_ended: "Ended a support session",

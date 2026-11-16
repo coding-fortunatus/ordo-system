@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -450,7 +450,9 @@ class SupportSessionEndView(PlatformView):
 
 
 def plans():
-    """Every plan with how many schools are on it (the public row isn't one)."""
+    """Every plan with how many schools are on it (the public row isn't one),
+    and whether it can be deleted: no school row at all points at it, the
+    public row and purged schools included."""
     on_plan = (
         schools()
         .filter(plan=OuterRef("pk"))
@@ -459,7 +461,10 @@ def plans():
         .annotate(n=Count("pk"))
         .values("n")
     )
-    return Plan.objects.annotate(school_count=Coalesce(Subquery(on_plan), 0))
+    return Plan.objects.annotate(
+        school_count=Coalesce(Subquery(on_plan), 0),
+        deletable=~Exists(School.objects.filter(plan=OuterRef("pk"))),
+    )
 
 
 class PlanListView(PlatformView):
@@ -488,16 +493,36 @@ class PlanDetailView(PlatformView):
     permission_classes = [IsPlatformOwner]
 
     def patch(self, request, pk):
-        """Edit any field but the code; ``is_active`` false stops offering it."""
+        """Edit any field, the code included; ``is_active`` false stops offering it.
+        The audit row is filed under the code the plan had before the edit."""
         with transaction.atomic():
             plan = get_object_or_404(Plan.objects.select_for_update(), pk=pk)
             serializer = PlanSerializer(plan, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
+            code = plan.code
             changes = _apply(plan, serializer.validated_data)
             if changes:
                 plan.save(update_fields=list(changes))
-                audit.record(request, "plan_updated", code=plan.code, changes=changes)
+                audit.record(request, "plan_updated", code=code, changes=changes)
         return Response(PlanSerializer(plans().get(pk=pk)).data)
+
+    def delete(self, request, pk):
+        """Delete a plan no school row points at. Archive one that is in use
+        (``is_active`` false) instead; its schools keep it."""
+        with transaction.atomic():
+            plan = get_object_or_404(Plan.objects.select_for_update(), pk=pk)
+            on_plan = plan.schools.exclude(schema_name=get_public_schema_name()).count()
+            if on_plan:
+                raise Conflict(
+                    f"{on_plan} school{'' if on_plan == 1 else 's'} "
+                    f"{'is' if on_plan == 1 else 'are'} on this plan, closed ones included. "
+                    "Archive it instead, or move them to another plan first."
+                )
+            if plan.schools.exists():
+                raise Conflict("The platform itself uses this plan, so it can't be deleted.")
+            audit.record(request, "plan_deleted", code=plan.code, plan=PlanSerializer(plans().get(pk=pk)).data)
+            plan.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # How far ahead the dashboard warns about renewals, and how much usage
