@@ -53,7 +53,7 @@ class TimetableExportView(APIView):
 
 
 class DistributionExportView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("distribution")]
 
     def get(self, request):
         return counted_export("distribution", csv_gen.export_distribution(request))

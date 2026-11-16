@@ -111,7 +111,12 @@ export function usePlatformAudit(params: PlatformAuditParams = {}) {
   });
 }
 
-export { FEATURE_LABELS, type FeatureKey } from "./school";
+export {
+  FEATURE_LABELS,
+  type FeatureKey,
+  missingFeatureRequirement,
+  SEAT_ALLOCATION_NEEDS_DISTRIBUTION,
+} from "./school";
 
 export interface PlanRow {
   id: number;

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Pencil, Plus } from "lucide-react";
 import {
   FEATURE_LABELS,
+  missingFeatureRequirement,
+  SEAT_ALLOCATION_NEEDS_DISTRIBUTION,
   type FeatureKey,
   type PlanInput,
   type PlanRow,
@@ -156,8 +158,11 @@ const planSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   max_students: optionalCount,
   max_staff_users: optionalCount,
-  features: z.array(z.enum(["seat_allocation", "exports", "publication", "branding", "portal_sync"])),
+  features: z.array(z.enum(["distribution", "seat_allocation", "exports", "publication", "branding", "portal_sync"])),
   is_active: z.boolean(),
+}).refine((v) => !missingFeatureRequirement(v.features), {
+  path: ["features"],
+  message: SEAT_ALLOCATION_NEEDS_DISTRIBUTION,
 });
 
 type PlanValues = z.infer<typeof planSchema>;

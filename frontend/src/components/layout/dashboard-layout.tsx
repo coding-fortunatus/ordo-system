@@ -108,6 +108,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Distribution",
         icon: Boxes,
         requires: isCommittee,
+        feature: "distribution",
       },
       {
         to: "/allocation",

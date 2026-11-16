@@ -7,7 +7,7 @@ export function schoolPlan(overrides: Partial<SchoolPlan> = {}): SchoolPlan {
     slug: "test",
     status: "active",
     timezone: "Africa/Lagos",
-    features: ["seat_allocation", "exports", "publication", "branding"],
+    features: ["distribution", "seat_allocation", "exports", "publication", "branding"],
     limits: { max_students: null, max_staff_users: null },
     usage: { students: 0, staff_users: 1 },
     support: null,

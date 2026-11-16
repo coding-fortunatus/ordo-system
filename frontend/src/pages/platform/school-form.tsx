@@ -6,6 +6,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Database, Globe, Mail } from "lucide-react";
 import {
   FEATURE_LABELS,
+  missingFeatureRequirement,
+  SEAT_ALLOCATION_NEEDS_DISTRIBUTION,
   type CreateSchoolInput,
   type FeatureKey,
   type SchoolDetail,
@@ -81,7 +83,7 @@ const schema = z
     max_students_override: optionalCount,
     max_staff_users_override: optionalCount,
     use_plan_features: z.boolean(),
-    features_override: z.array(z.enum(["seat_allocation", "exports", "publication", "branding", "portal_sync"])),
+    features_override: z.array(z.enum(["distribution", "seat_allocation", "exports", "publication", "branding", "portal_sync"])),
     plan_started_on: z.string(),
     renews_on: z.string(),
     contact_name: z.string().trim().max(255),
@@ -96,6 +98,10 @@ const schema = z
   .refine((v) => !v.plan_started_on || !v.renews_on || v.renews_on >= v.plan_started_on, {
     path: ["renews_on"],
     message: "The renewal date can't be before the plan starts",
+  })
+  .refine((v) => v.use_plan_features || !missingFeatureRequirement(v.features_override), {
+    path: ["features_override"],
+    message: SEAT_ALLOCATION_NEEDS_DISTRIBUTION,
   });
 
 type Values = z.infer<typeof schema>;

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 
 /** Optional features a plan switches on (tenancy.features.KEYS). */
 export type FeatureKey =
+  | "distribution"
   | "seat_allocation"
   | "exports"
   | "publication"
@@ -10,6 +11,7 @@ export type FeatureKey =
   | "portal_sync";
 
 export const FEATURE_LABELS: Record<FeatureKey, string> = {
+  distribution: "Distribution",
   seat_allocation: "Seat allocation",
   exports: "Exports",
   publication: "Timetable publication",
@@ -30,6 +32,13 @@ export interface SchoolPlan {
   support: { active: boolean; expires_at: string; admin_name: string } | null;
   /** Messages from the Ordo team, newest first (at most three). */
   announcements?: Array<{ id: number; message: string; level: "info" | "warning"; ends_at: string | null }>;
+}
+
+/** Seats are planned from the hall distribution, so seat allocation needs it. */
+export const SEAT_ALLOCATION_NEEDS_DISTRIBUTION = "Seat allocation needs Distribution switched on too.";
+
+export function missingFeatureRequirement(features: readonly FeatureKey[]): boolean {
+  return features.includes("seat_allocation") && !features.includes("distribution");
 }
 
 export const SCHOOL_PLAN_KEY = ["school"] as const;

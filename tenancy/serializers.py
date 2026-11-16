@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from rest_framework import serializers
 
-from tenancy.features import KEYS
+from tenancy.features import KEYS, missing_requirement
 from tenancy.models import (
     Plan,
     PlatformAdmin,
@@ -120,6 +120,13 @@ def _feature_list(**kwargs):
     return serializers.ListField(child=serializers.ChoiceField(choices=sorted(KEYS)), **kwargs)
 
 
+def _checked_features(value):
+    """Sorted, de-duplicated keys; refuses a feature without its prerequisite."""
+    if message := missing_requirement(value):
+        raise serializers.ValidationError(message)
+    return sorted(set(value))
+
+
 class PlanSerializer(serializers.ModelSerializer):
     """A plan as the console lists it, and its create and edit form.
 
@@ -151,7 +158,7 @@ class PlanSerializer(serializers.ModelSerializer):
             self.fields["code"].read_only = True
 
     def validate_features(self, value):
-        return sorted(set(value))
+        return _checked_features(value)
 
 
 class _PlanRefSerializer(serializers.ModelSerializer):
@@ -303,7 +310,7 @@ class CreateSchoolSerializer(serializers.Serializer):
         return value
 
     def validate_features_override(self, value):
-        return None if value is None else sorted(set(value))
+        return None if value is None else _checked_features(value)
 
     def validate_first_admin_email(self, value):
         return value.strip().lower()

@@ -278,6 +278,11 @@ class FeatureKeyTests(SchoolTestCase):
         with self.assertRaisesMessage(ValidationError, "Unknown feature keys: sso."):
             validate_feature_keys(["exports", "sso"])
 
+    def test_seat_allocation_without_distribution_is_refused(self):
+        with self.assertRaisesMessage(ValidationError, "Seat allocation needs Distribution"):
+            validate_feature_keys(["seat_allocation"])
+        validate_feature_keys(["distribution", "seat_allocation"])
+
     def test_anything_but_a_list_of_strings_is_refused(self):
         for value in ("exports", {"exports": True}, [1]):
             with self.subTest(value=value):

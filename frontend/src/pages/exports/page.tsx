@@ -32,6 +32,7 @@ export default function ExportsPage() {
   // bundle need exports (spec 0003, child 0005).
   const seating = useHasFeature("seat_allocation");
   const exports = useHasFeature("exports");
+  const distribution = useHasFeature("distribution");
   const dates = useTimetableDates();
   const halls = useHalls({ all: true });
   // Whether a timetable exists. Not ``has_timetable``: that flag is the
@@ -137,6 +138,7 @@ export default function ExportsPage() {
         />
         {isAdmin && (
           <>
+            {distribution && (
             <ExportCard
               title="Distribution CSV"
               description="Hall-to-class assignments for the selected slot."
@@ -150,6 +152,7 @@ export default function ExportsPage() {
                 )
               }
             />
+            )}
             {seating && (
             <ExportCard
               title="Arrangement ZIP"

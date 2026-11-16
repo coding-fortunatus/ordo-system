@@ -294,6 +294,32 @@ class FeatureTests(LimitsTestCase):
             self.assertEqual(response.status_code, 403, path)
             self.assertEqual(response.data["code"], "feature_disabled", path)
 
+    def test_distribution_off_gates_its_endpoints(self):
+        self.turn_off("distribution", "seat_allocation")
+
+        for method, path in [
+            ("get", "/api/distribution/"),
+            ("get", "/api/distribution/statistics/"),
+            ("post", "/api/distribution/generate/"),
+            ("post", "/api/distribution/generate-all/"),
+            ("post", "/api/distribution/clear/"),
+            ("get", "/api/exports/distribution/"),
+        ]:
+            response = getattr(self.client, method)(path)
+            self.assertEqual(response.status_code, 403, path)
+            self.assertEqual(response.data["code"], "feature_disabled", path)
+
+    def test_retrying_a_distribution_job_needs_distribution(self):
+        self.turn_off("distribution", "seat_allocation")
+        job = BackgroundJob.objects.create(
+            job_id="old-dist", job_type="distribution", status="failed", created_by=self.admin
+        )
+
+        response = self.client.post(f"/api/jobs/{job.job_id}/retry/")
+
+        self.assertEqual(response.status_code, 403, response.data)
+        self.assertEqual(response.data["code"], "feature_disabled")
+
     def test_exports_and_publication_off_gate_their_endpoints(self):
         # covers: AC-29
         self.turn_off("exports", "publication")

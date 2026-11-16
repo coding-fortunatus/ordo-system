@@ -19,7 +19,7 @@ const STARTER: PlanRow = {
   name: "Starter",
   max_students: 2000,
   max_staff_users: null,
-  features: ["exports", "seat_allocation"],
+  features: ["distribution", "exports", "seat_allocation"],
   is_active: true,
   school_count: 3,
 };
@@ -43,7 +43,7 @@ describe("ConsolePlansPage", () => {
     const row = (await screen.findByText("Starter")).closest("tr")!;
     expect(within(row).getByText("2,000")).toBeInTheDocument();
     expect(within(row).getByText("Unlimited")).toBeInTheDocument();
-    expect(within(row).getByText("Exports, Seat allocation")).toBeInTheDocument();
+    expect(within(row).getByText("Distribution, Exports, Seat allocation")).toBeInTheDocument();
     expect(within(row).getByText("3")).toBeInTheDocument();
     expect(within(row).getByText("Offered")).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe("ConsolePlansPage", () => {
         name: "Starter",
         max_students: null,
         max_staff_users: null,
-        features: ["exports", "seat_allocation"],
+        features: ["distribution", "exports", "seat_allocation"],
         is_active: false,
       }),
     );

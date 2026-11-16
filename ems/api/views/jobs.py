@@ -432,6 +432,7 @@ class GenerateTimetableView(_BaseGenerateView):
 
 
 class GenerateDistributionView(_BaseGenerateView):
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
     job_type = "distribution"
 
     def post(self, request):
@@ -482,6 +483,7 @@ class GenerateDistributionAllView(_BaseGenerateView):
     """Distribute every (date, period) slot in the timetable in one go.
     Slots that already have a distribution plan are skipped."""
 
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
     job_type = "distribution_all"
 
     def post(self, request):
@@ -538,7 +540,7 @@ class ClearDistributionView(APIView):
     Clears one slot's distribution and the seat allocation planned from it,
     so the slot can be distributed again."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
 
     def post(self, request):
         date, period = _slot_from(request.data)

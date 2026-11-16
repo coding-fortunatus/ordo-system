@@ -12,7 +12,7 @@ class PlanTests(SchoolConsoleTestCase):
             "name": "Pro",
             "max_students": 5000,
             "max_staff_users": 40,
-            "features": ["exports", "seat_allocation", "exports"],
+            "features": ["exports", "seat_allocation", "distribution", "exports"],
             **overrides,
         }
 
@@ -26,7 +26,7 @@ class PlanTests(SchoolConsoleTestCase):
         response = self.create_plan()
 
         self.assertEqual(response.status_code, 201, response.data)
-        self.assertEqual(response.data["features"], ["exports", "seat_allocation"])
+        self.assertEqual(response.data["features"], ["distribution", "exports", "seat_allocation"])
         self.assertEqual(response.data["school_count"], 0)
         self.assertTrue(response.data["is_active"])
         entry = PlatformAuditLog.objects.get(action="plan_created")
@@ -36,6 +36,7 @@ class PlanTests(SchoolConsoleTestCase):
         # covers: AC-26
         for overrides, field in [
             ({"features": ["teleport"]}, "features"),
+            ({"features": ["seat_allocation"]}, "features"),
             ({"max_students": -1}, "max_students"),
             ({"code": "starter"}, "code"),
         ]:

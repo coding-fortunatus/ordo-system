@@ -307,7 +307,7 @@ class TimetableEstimateView(APIView):
 
 
 class DistributionListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("distribution")]
 
     def get(self, request):
         date = request.query_params.get("date")
@@ -358,7 +358,7 @@ class DistributionListView(APIView):
 
 
 class DistributionStatisticsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("distribution")]
 
     def get(self, request):
         date = request.query_params.get("date")

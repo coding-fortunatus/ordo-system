@@ -75,6 +75,7 @@ const OPS: Array<{ to: AppPath; label: string; hint: string; feature?: FeatureKe
     to: "/distribution",
     label: "Distribution",
     hint: "Capacity-aware hall assignment.",
+    feature: "distribution",
   },
   {
     to: "/allocation",

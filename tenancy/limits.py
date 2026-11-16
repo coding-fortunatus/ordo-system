@@ -55,6 +55,7 @@ class FeatureDisabled(CodedAPIException):
 
 # Feature names as the error message shows them.
 FEATURE_LABELS = {
+    "distribution": "Distribution",
     "seat_allocation": "Seat allocation",
     "exports": "Exports",
     "publication": "Timetable publishing",
@@ -72,8 +73,13 @@ def assert_feature(key):
         raise FeatureDisabled(f"{FEATURE_LABELS[key]} isn't included in your plan.")
 
 
-# Job types that need a feature to run. Timetable and distribution need none.
-JOB_FEATURES = {"allocation": "seat_allocation", "allocation_all": "seat_allocation"}
+# Job types that need a feature to run. Timetable needs none.
+JOB_FEATURES = {
+    "distribution": "distribution",
+    "distribution_all": "distribution",
+    "allocation": "seat_allocation",
+    "allocation_all": "seat_allocation",
+}
 
 
 def assert_feature_for_job(job_type):

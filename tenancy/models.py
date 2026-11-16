@@ -18,7 +18,7 @@ from django.db.models.functions import Coalesce
 from django_tenants.models import DomainMixin, TenantMixin
 from django_tenants.utils import get_public_schema_name
 
-from tenancy.features import KEYS
+from tenancy.features import KEYS, missing_requirement
 
 
 def validate_feature_keys(value):
@@ -29,6 +29,8 @@ def validate_feature_keys(value):
     unknown = sorted(set(value) - KEYS)
     if unknown:
         raise ValidationError(f"Unknown feature keys: {', '.join(unknown)}.")
+    if message := missing_requirement(value):
+        raise ValidationError(message)
 
 
 class Plan(models.Model):
