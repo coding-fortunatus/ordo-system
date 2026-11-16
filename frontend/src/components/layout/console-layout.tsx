@@ -111,10 +111,18 @@ const NAV = NAV_GROUPS.flatMap((g) => g.items);
 /** Pages outside the nav that still name the header. */
 const EXTRA_TITLES: Array<[string, string]> = [["/console/account", "Your account"]];
 
-function isActive(pathname: string, { to }: NavItem) {
+function matches(pathname: string, { to }: NavItem) {
   // The dashboard is the console root, so only an exact match counts.
   if (to === "/console") return pathname === "/console" || pathname === "/console/";
-  return pathname.startsWith(to);
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+/**
+ * The one nav item for this page. Some links are prefixes of others
+ * (Observability "Overview" vs "Logs"), so the longest match wins.
+ */
+function activeNavItem(pathname: string): NavItem | undefined {
+  return NAV.filter((item) => matches(pathname, item)).sort((a, b) => b.to.length - a.to.length)[0];
 }
 
 function ConsoleSidebar() {
@@ -169,7 +177,7 @@ function ConsoleSidebar() {
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
-                    isActive={isActive(pathname, item)}
+                    isActive={activeNavItem(pathname)?.to === item.to}
                     tooltip={item.label}
                     render={<Link to={item.to} onClick={() => isMobile && setOpenMobile(false)} />}
                   >
@@ -266,7 +274,7 @@ function ConsoleSidebar() {
 export function ConsoleLayout() {
   const { pathname } = useLocation();
   const current =
-    NAV.find((item) => isActive(pathname, item))?.label ??
+    activeNavItem(pathname)?.label ??
     EXTRA_TITLES.find(([path]) => pathname.startsWith(path))?.[1];
 
   return (
