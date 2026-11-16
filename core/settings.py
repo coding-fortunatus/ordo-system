@@ -484,7 +484,11 @@ _CHANNEL_REDIS = env(
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [_CHANNEL_REDIS]},
+        # redis-py 8 defaults socket_timeout to 5 s. A consumer waits on a
+        # blocking BZPOPMIN for 5 s (channels-redis brpop_timeout), so every
+        # idle websocket hit the socket timeout. Keep the socket timeout well
+        # above the blocking wait.
+        "CONFIG": {"hosts": [{"address": _CHANNEL_REDIS, "socket_timeout": 30}]},
     },
 }
 
