@@ -54,6 +54,8 @@ export const ACTION_LABELS: Record<string, string> = {
   support_ticket_issued: "Opened a support link",
   support_started: "Entered a school as support",
   support_ended: "Ended a support session",
+  support_access_requested: "School asked for support",
+  support_access_withdrawn: "School withdrew its support request",
   password_changed: "Changed their password",
   account_password_wrong: "Wrong password on the account page",
   totp_reenrolled: "Moved to a new authenticator",
@@ -74,6 +76,9 @@ const SYSTEM_ACTIONS = new Set([
   "export_failed",
   "school_purged",
 ]);
+
+/** Done by a school's own staff from the school's side. */
+const SCHOOL_ACTIONS = new Set(["support_access_requested", "support_access_withdrawn"]);
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -116,7 +121,12 @@ export function AuditTable({ rows, showSchool = true }: { rows: PlatformAuditRow
               </TableCell>
               <TableCell>
                 <span className="block font-medium">
-                  {row.admin?.name ?? (SYSTEM_ACTIONS.has(row.action) ? "Ordo" : "Unknown")}
+                  {row.admin?.name ??
+                    (SYSTEM_ACTIONS.has(row.action)
+                      ? "Ordo"
+                      : SCHOOL_ACTIONS.has(row.action)
+                        ? "School staff"
+                        : "Unknown")}
                 </span>
                 {row.admin && (
                   <span className="block text-[12px] text-muted-foreground">{row.admin.email}</span>

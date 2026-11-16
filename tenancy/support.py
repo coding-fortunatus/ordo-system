@@ -4,6 +4,11 @@ The console issues a one time ticket (60 s, bound to one school, stored
 hashed). The school host redeems it for a token of a hidden Super Admin,
 ``support+<admin_id>@ordo.invalid``, whose ``support_expires_at`` cuts it
 off on time whatever the client does (spec 0003, child 0006).
+
+Support goes into a demo school (``School.is_demo``) whenever it likes.
+Any other school must ask first: one of its Super Admins opens a
+``SupportAccess`` from Settings, and visits run under it until it expires
+or they withdraw it.
 """
 import hashlib
 import secrets
@@ -17,11 +22,13 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 
 from ems.api.exceptions import CodedAPIException, Conflict
-from tenancy import audit
-from tenancy.models import School, SupportSession
+from tenancy import alerts, audit
+from tenancy.models import School, SupportAccess, SupportSession
 
 TICKET_TTL = timedelta(seconds=60)
 SUPPORT_SESSION_TTL = timedelta(hours=1)
+# How long a school's request lets support in.
+ACCESS_TTL = timedelta(hours=24)
 
 # A school an admin may start a session in. Redeeming is let through the
 # status gate for the same two.
@@ -32,6 +39,24 @@ class TicketGone(CodedAPIException):
     status_code = status.HTTP_410_GONE
     default_detail = "This support link has expired."
     default_code = "support_ticket_gone"
+
+
+class AccessNotRequested(CodedAPIException):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = (
+        "This school hasn't asked for support. One of its Super Admins can "
+        "request it from Settings; only demo schools can be entered without asking."
+    )
+    default_code = "support_not_requested"
+
+
+def open_access(school, now=None):
+    """The school's grant in force, locked, or None. Demo schools need none."""
+    return (
+        SupportAccess.open(school, now or timezone.now())
+        .select_for_update(of=("self",))
+        .first()
+    )
 
 
 def hash_ticket(ticket):
@@ -58,11 +83,17 @@ def start(request, school, reason):
             "Support sessions need an active or suspended school. This one is "
             f"{school.get_status_display().lower()}."
         )
+    access = None
+    if not school.is_demo:
+        access = open_access(school)
+        if access is None:
+            raise AccessNotRequested()
     ticket = secrets.token_urlsafe(32)
     session = SupportSession.objects.create(
         admin=request.user,
         school=school,
         reason=reason,
+        access=access,
         ticket_hash=hash_ticket(ticket),
         ticket_expires_at=timezone.now() + TICKET_TTL,
     )
@@ -97,6 +128,17 @@ def redeem(request, ticket):
         raise TicketGone()
     admin = session.admin
 
+    # The school may have withdrawn its request since the link was made,
+    # or stopped being a demo. A visit never outlasts the request.
+    expires_at = now + SUPPORT_SESSION_TTL
+    if session.access_id is not None:
+        access = open_access(session.school, now)
+        if access is None or access.pk != session.access_id:
+            raise TicketGone()
+        expires_at = min(expires_at, access.expires_at)
+    elif not session.school.is_demo:
+        raise TicketGone()
+
     # One shadow user per admin per school: a session still open for the
     # same pair would share its token, so this one replaces it.
     for earlier in open_sessions().select_for_update().filter(
@@ -105,7 +147,7 @@ def redeem(request, ticket):
         _close(request, earlier, now, reason="replaced")
 
     session.ticket_used_at = session.started_at = now
-    session.expires_at = now + SUPPORT_SESSION_TTL
+    session.expires_at = expires_at
 
     user, created = User.all_objects.get_or_create(
         email=shadow_email(admin.pk),
@@ -206,3 +248,58 @@ def current_session(user, school):
         .order_by("-started_at")
         .first()
     )
+
+
+# ------------------------------------------------- the school's side
+
+
+def request_access(request, reason):
+    """Let Ordo support in for ``ACCESS_TTL``, asked by this Super Admin.
+
+    Runs on the school host. 409 while an earlier request is still open:
+    the school withdraws that one first.
+    """
+    school = request.tenant
+    now = timezone.now()
+    with transaction.atomic():
+        # One request at a time per school, even if two admins ask at once.
+        School.objects.select_for_update(of=("self",)).filter(pk=school.pk).first()
+        if open_access(school, now) is not None:
+            raise Conflict("Ordo support can already come in. Withdraw that first to ask again.")
+        user = request.user
+        access = SupportAccess.objects.create(
+            school=school,
+            reason=reason,
+            requested_by_email=user.email,
+            requested_by_name=f"{user.first_name} {user.last_name}".strip(),
+            tenant_user_id=user.pk,
+            expires_at=now + ACCESS_TTL,
+        )
+        audit.record(
+            request, "support_access_requested", school, access_id=access.pk,
+            reason=reason, requested_by=user.email,
+            expires_at=access.expires_at.isoformat(),
+        )
+        alerts.send(
+            f"{school.name} asked for Ordo support"[:150],
+            [f"{access.requested_by_name or user.email} <{user.email}>", reason[:500]],
+            f"/schools/{school.pk}",
+        )
+    return access
+
+
+def withdraw_access(request, access):
+    """Close the school's request now and end every visit under it."""
+    with transaction.atomic():
+        access = SupportAccess.objects.select_for_update(of=("self",)).get(pk=access.pk)
+        if access.withdrawn_at is not None:
+            raise Conflict("This request has already been withdrawn.")
+        access.withdrawn_at = timezone.now()
+        access.save(update_fields=["withdrawn_at"])
+        for session in open_sessions().filter(access=access):
+            end(request, session, reason="access_withdrawn")
+        audit.record(
+            request, "support_access_withdrawn", access.school,
+            access_id=access.pk, withdrawn_by=request.user.email,
+        )
+    return access

@@ -212,6 +212,8 @@ export interface SchoolRow {
   /** Null while the school has no live schema. */
   first_admin_joined: boolean | null;
   country: string;
+  /** Support may enter a demo school without the school asking first. */
+  is_demo: boolean;
   provisioning_error: string;
   created_at: string;
   /** Null until the first nightly snapshot. */
@@ -242,6 +244,17 @@ export interface SchoolDetail extends SchoolRow {
   created_by: { id: number; name: string; email: string } | null;
   /** Null while the school has no live schema yet. */
   first_admin: { joined: boolean; invite_expires_at: string | null } | null;
+  /** The school's request for support still in force. Without it, support can only enter a demo school. */
+  support_access: SupportAccess | null;
+}
+
+export interface SupportAccess {
+  id: number;
+  reason: string;
+  requested_by_name: string;
+  requested_by_email: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface CreateSchoolInput {
@@ -260,6 +273,7 @@ export interface CreateSchoolInput {
   notes?: string;
   plan_started_on?: string | null;
   renews_on?: string | null;
+  is_demo?: boolean;
 }
 
 export interface SchoolListParams {

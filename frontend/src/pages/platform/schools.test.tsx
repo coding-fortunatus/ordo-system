@@ -27,7 +27,9 @@ const SCHOOL: SchoolRow = {
   domain: "unilag.ordo.app",
   first_admin_name: "Ada Obi",
   first_admin_email: "ada@unilag.edu.ng",
+  first_admin_joined: true,
   country: "NG",
+  is_demo: false,
   provisioning_error: "",
   created_at: "2026-10-01T09:00:00Z",
   usage: {

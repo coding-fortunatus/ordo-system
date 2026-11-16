@@ -32,7 +32,7 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { orEmpty } from "@/lib/format";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
-import { StartSupportDialog, SupportSessionsCard } from "./school-support";
+import { StartSupportDialog, SupportSessionsCard, formatSupportTime } from "./school-support";
 import { AuditTable } from "./audit";
 import { ErrorGroupsCard, HealthCard } from "./errors";
 import { SchoolObservability } from "./observability";
@@ -114,7 +114,12 @@ function SchoolView({ school, search }: { school: SchoolDetail; search: SchoolSe
         section="Console · School"
         title={school.name}
         description={school.domain ?? school.slug}
-        meta={<SchoolStatusBadge status={school.status} />}
+        meta={
+          <span className="inline-flex items-center gap-2">
+            <SchoolStatusBadge status={school.status} />
+            {school.is_demo && <Badge variant="secondary">Demo</Badge>}
+          </span>
+        }
         actions={
           <>
             {owner && school.status === "failed" && (
@@ -240,6 +245,22 @@ function SchoolView({ school, search }: { school: SchoolDetail; search: SchoolSe
           <AlertDescription>
             The school's data, files and address are gone. Its address stays reserved, so it can't
             be given to another school.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {canSupport && school.support_access && (
+        <Alert>
+          <LifeBuoy aria-hidden />
+          <AlertTitle>
+            Support requested until {formatSupportTime(school.support_access.expires_at)}
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              {school.support_access.requested_by_name || school.support_access.requested_by_email}{" "}
+              asked for help on {formatSupportTime(school.support_access.created_at)}:
+            </p>
+            <p className="mt-2 whitespace-pre-wrap">{school.support_access.reason}</p>
           </AlertDescription>
         </Alert>
       )}

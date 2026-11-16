@@ -94,6 +94,7 @@ const schema = z
       .regex(/^([a-zA-Z]{2})?$/, "Use a two letter code, like NG"),
     timezone: z.string().trim().min(1, "Pick a time zone"),
     notes: z.string(),
+    is_demo: z.boolean(),
   })
   .refine((v) => !v.plan_started_on || !v.renews_on || v.renews_on >= v.plan_started_on, {
     path: ["renews_on"],
@@ -122,6 +123,7 @@ const FIELDS = [
   "country",
   "timezone",
   "notes",
+  "is_demo",
 ] as const;
 
 const count = (value: string) => (value === "" ? null : Number(value));
@@ -146,6 +148,7 @@ function toValues(school: SchoolDetail | undefined): Values {
       country: "NG",
       timezone: DEFAULT_TIMEZONE,
       notes: "",
+      is_demo: false,
     };
   }
   return {
@@ -165,6 +168,7 @@ function toValues(school: SchoolDetail | undefined): Values {
     country: school.country,
     timezone: school.timezone,
     notes: school.notes,
+    is_demo: school.is_demo,
   };
 }
 
@@ -185,6 +189,7 @@ function toInput(v: Values): CreateSchoolInput {
     country: v.country.toUpperCase(),
     timezone: v.timezone,
     notes: v.notes,
+    is_demo: v.is_demo,
   };
 }
 
@@ -608,6 +613,24 @@ export function SchoolForm({
                       <textarea rows={3} className={TEXTAREA} placeholder="Only the Ordo team sees these." {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_demo"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-4 border-y border-[color:var(--border)] py-3">
+                    <div>
+                      <FormLabel>Demo school</FormLabel>
+                      <FormDescription>
+                        Support can open a demo school at any time. Any other school has to ask for
+                        support from its Settings first.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
                   </FormItem>
                 )}
               />

@@ -92,6 +92,9 @@ class School(TenantMixin):
     country = models.CharField(max_length=2, blank=True, default="")
     timezone = models.CharField(max_length=64, default="Africa/Lagos")
     notes = models.TextField(blank=True, default="")
+    # A school the Ordo team runs for demos. Support may enter it without
+    # the school asking first (tenancy.support.start); only Owners set it.
+    is_demo = models.BooleanField(default=False)
     plan_started_on = models.DateField(null=True, blank=True)
     renews_on = models.DateField(null=True, blank=True)
     provisioning_error = models.TextField(blank=True, default="")
@@ -286,11 +289,52 @@ class SupportSession(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     tenant_user_id = models.IntegerField(null=True, blank=True)
+    # The school's permission this visit runs under; None in a demo school.
+    access = models.ForeignKey(
+        "SupportAccess",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="sessions",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["school", "-created_at"])]
+
+
+class SupportAccess(models.Model):
+    """A school asking Ordo support in. Without an open one, support can't
+    enter a school that isn't a demo (``tenancy.support.start``).
+
+    Opened by one of the school's Super Admins from Settings, with a reason.
+    It lasts ``tenancy.support.ACCESS_TTL`` unless they withdraw it first,
+    which also ends any visit running under it. ``tenant_user_id`` is the
+    asker's id in the school's schema; no foreign key crosses schemas.
+    """
+
+    school = models.ForeignKey(
+        School, on_delete=models.PROTECT, related_name="support_accesses"
+    )
+    reason = models.TextField()
+    requested_by_email = models.EmailField()
+    requested_by_name = models.CharField(max_length=255, blank=True, default="")
+    tenant_user_id = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["school", "-created_at"])]
+
+    @classmethod
+    def open(cls, school, now):
+        """The school's grants still in force, longest lasting first."""
+        return cls.objects.filter(
+            school=school, withdrawn_at__isnull=True, expires_at__gt=now
+        ).order_by("-expires_at", "-id")
 
 
 class UsageSnapshot(models.Model):

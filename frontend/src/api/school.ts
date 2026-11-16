@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 /** Optional features a plan switches on (tenancy.features.KEYS). */
@@ -96,4 +96,59 @@ export async function redeemSupportTicket(ticket: string) {
 /** End this support session now; the token stops working at once. */
 export async function endSupportSession() {
   await api.post("/support/end/");
+}
+
+/**
+ * Whether Ordo support may come in: GET /api/support/access/. Support can
+ * enter a school only after one of its Super Admins asks, for a day at most.
+ * Demo schools are the exception.
+ */
+export interface SupportAccessInfo {
+  is_demo: boolean;
+  current: {
+    id: number;
+    reason: string;
+    requested_by: string;
+    created_at: string;
+    expires_at: string;
+  } | null;
+  /** The latest visits from Ordo support, newest first. */
+  visits: Array<{
+    id: number;
+    admin_name: string;
+    reason: string;
+    started_at: string;
+    /** Null while the visit is still going. */
+    ended_at: string | null;
+  }>;
+}
+
+const SUPPORT_ACCESS_KEY = ["school", "support-access"] as const;
+
+export function useSupportAccess(enabled = true) {
+  return useQuery({
+    queryKey: SUPPORT_ACCESS_KEY,
+    queryFn: async () => (await api.get<SupportAccessInfo>("/support/access/")).data,
+    enabled,
+  });
+}
+
+/** Let Ordo support in for a day: POST /api/support/access/. */
+export function useRequestSupport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reason: string) => (await api.post("/support/access/", { reason })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: SUPPORT_ACCESS_KEY }),
+  });
+}
+
+/** Withdraw the request; any visit under it ends at once. */
+export function useWithdrawSupport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete("/support/access/");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SUPPORT_ACCESS_KEY }),
+  });
 }

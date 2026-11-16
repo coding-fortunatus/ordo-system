@@ -13,8 +13,16 @@ from core.asgi import application
 from ems.models import AuditLog, Notification, User
 from ems.notifications import notify
 from tenancy import limits
-from tenancy.models import Domain, Plan, PlatformAdmin, PlatformAuditLog, School, SupportSession
-from tenancy.support import SUPPORT_SESSION_TTL, TICKET_TTL, shadow_email
+from tenancy.models import (
+    Domain,
+    Plan,
+    PlatformAdmin,
+    PlatformAuditLog,
+    School,
+    SupportAccess,
+    SupportSession,
+)
+from tenancy.support import ACCESS_TTL, SUPPORT_SESSION_TTL, TICKET_TTL, shadow_email
 from tenancy.tasks import close_expired_support_sessions
 from tenancy.test_school_lifecycle import SchoolConsoleTestCase
 from tenancy.testcases import SCHOOL_TEST_HOST, SchoolClient, SocketTestMixin
@@ -33,6 +41,15 @@ class SupportTestCase(SchoolConsoleTestCase):
                 email="sa@test.localhost", password="x-123456789",
                 role=User.Role.SUPER_ADMIN,
             )
+        # The school has asked support in; the gate itself is tested below.
+        self.access = self.grant()
+
+    def grant(self, **fields):
+        return SupportAccess.objects.create(
+            school=self.school, reason="Help with the timetable",
+            requested_by_email=self.staff.email, tenant_user_id=self.staff.pk,
+            expires_at=fields.pop("expires_at", timezone.now() + ACCESS_TTL), **fields,
+        )
 
     def start(self, client=None, school=None, reason="Can't publish the timetable"):
         return (client or self.owner).post(
@@ -135,6 +152,7 @@ class StartAndRedeemTests(SupportTestCase):
             schema_name="school_other", slug="other", name="Other",
             plan=Plan.objects.get(code="platform"), status=School.Status.ACTIVE,
             first_admin_name="O", first_admin_email="o@other.localhost",
+            is_demo=True,
         )
         Domain.objects.create(tenant=other, domain="other.localhost", is_primary=True)
         connection.set_tenant(self.school)
@@ -307,3 +325,97 @@ class SupportSocketTests(SocketTestMixin, SupportTestCase):
         async_to_sync(scenario)(True)
         with later(SUPPORT_SESSION_TTL + timedelta(seconds=1)):
             async_to_sync(scenario)(False)
+
+
+class AccessGateTests(SupportTestCase):
+    """Support enters a demo school freely; any other school must ask first."""
+
+    def setUp(self):
+        super().setUp()
+        self.access.delete()
+
+    def ask(self, reason="Exports keep failing"):
+        self.client.force_authenticate(self.staff)
+        return self.client.post("/api/support/access/", {"reason": reason}, format="json")
+
+    def test_a_school_that_has_not_asked_cannot_be_entered(self):
+        response = self.start()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "support_not_requested")
+        self.assertFalse(SupportSession.objects.exists())
+
+    def test_a_demo_school_needs_no_request(self):
+        School.objects.filter(pk=self.school.pk).update(is_demo=True)
+        self.school.refresh_from_db()
+        self.enter()
+        self.assertIsNone(SupportSession.objects.get().access)
+
+    def test_an_expired_request_lets_nobody_in(self):
+        self.grant(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(self.start().status_code, 403)
+
+    def test_a_super_admin_asks_support_in_for_a_day(self):
+        with mock.patch("tenancy.support.alerts.send") as alert:
+            response = self.ask()
+        self.assertEqual(response.status_code, 201, response.data)
+        access = SupportAccess.objects.get()
+        self.assertEqual(access.requested_by_email, self.staff.email)
+        self.assertAlmostEqual(
+            access.expires_at, timezone.now() + ACCESS_TTL, delta=timedelta(seconds=5)
+        )
+        alert.assert_called_once()
+        self.assertIn("support_access_requested", self.actions())
+        self.assertEqual(self.ask().status_code, 409)
+
+        self.enter()
+        session = SupportSession.objects.get()
+        self.assertEqual(session.access, access)
+
+    def test_only_a_super_admin_of_the_school_can_ask(self):
+        with schema_context(self.school.schema_name):
+            officer = User.objects.create_user(
+                email="do@test.localhost", password="x-123456789",
+                role=User.Role.DATA_OFFICER,
+            )
+        self.client.force_authenticate(officer)
+        response = self.client.post("/api/support/access/", {"reason": "x"}, format="json")
+        self.assertEqual(response.status_code, 403)
+
+    def test_support_cannot_extend_its_own_access(self):
+        self.grant()
+        client = self.enter()
+        response = client.post("/api/support/access/", {"reason": "more time"}, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(client.delete("/api/support/access/").status_code, 403)
+
+    def test_a_visit_never_outlasts_the_request(self):
+        access = self.grant(expires_at=timezone.now() + timedelta(minutes=10))
+        self.enter()
+        self.assertEqual(SupportSession.objects.get().expires_at, access.expires_at)
+
+    def test_withdrawing_ends_visits_and_waiting_links(self):
+        self.grant()
+        client = self.enter()
+        waiting = self.ticket(self.start())
+        self.client.force_authenticate(self.staff)
+        self.assertEqual(self.client.delete("/api/support/access/").status_code, 204)
+        self.assertEqual(client.get("/api/auth/me/").status_code, 401)
+        self.assertEqual(self.redeem(waiting).status_code, 410)
+        self.assertFalse(SupportSession.objects.filter(ended_at__isnull=True).exists())
+        self.assertIn("support_access_withdrawn", self.actions())
+        self.assertEqual(self.start().status_code, 403)
+
+    def test_the_school_sees_its_request_and_visits(self):
+        self.grant()
+        self.enter()
+        self.client.force_authenticate(self.staff)
+        data = self.client.get("/api/support/access/").data
+        self.assertFalse(data["is_demo"])
+        self.assertEqual(data["current"]["reason"], "Help with the timetable")
+        self.assertEqual(data["visits"][0]["admin_name"], self.owner_admin.name)
+
+    def test_the_console_shows_the_open_request(self):
+        self.grant()
+        data = self.owner.get(f"/api/platform/schools/{self.school.pk}/").data
+        self.assertEqual(data["support_access"]["requested_by_email"], self.staff.email)
+        self.assertFalse(data["is_demo"])

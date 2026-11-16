@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import {
-  type SchoolRow,
+  type SchoolDetail,
   type SupportSessionRow,
   type SupportSessionState,
   useEndSupportSession,
@@ -36,12 +36,16 @@ import { toast } from "@/lib/use-toast";
 const TEXTAREA =
   "flex min-h-[72px] w-full border border-transparent border-b-input bg-transparent px-0 py-2 text-base outline-none transition-[color,border-color] placeholder:text-muted-foreground focus-visible:border-b-ring aria-invalid:border-b-destructive md:text-sm";
 
-type School = Pick<SchoolRow, "id" | "name">;
+type School = Pick<SchoolDetail, "id" | "name" | "is_demo" | "support_access">;
 
 /**
  * Start an Ordo support session (spec 0003, child 0006). The school opens in
  * a new tab through a link that works once, within a minute. The reason is
  * written to the school's own audit log.
+ *
+ * Support can enter a demo school at any time. Any other school must ask
+ * first, from its Settings. Until it does, this dialog explains that and
+ * shows no form (the server refuses anyway).
  */
 export function StartSupportDialog({
   school,
@@ -103,7 +107,22 @@ export function StartSupportDialog({
             shows that Ordo support came in, why, and everything done during the visit.
           </DialogDescription>
         </DialogHeader>
-        {link ? (
+        {!school.is_demo && !school.support_access ? (
+          <>
+            <Alert>
+              <AlertDescription>
+                {school.name} hasn't asked for support. One of its Super Admins can ask from
+                Settings in their school, and you can open a session here once they have. Only
+                demo schools can be opened without asking.
+              </AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => close(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </>
+        ) : link ? (
           <Alert>
             <AlertDescription>
               <p>Your browser blocked the new tab. This link works once, within a minute.</p>
@@ -160,7 +179,7 @@ const STATE_BADGES: Record<
   ended: { label: "Ended", variant: "secondary" },
 };
 
-function formatTime(iso: string | null): string {
+export function formatSupportTime(iso: string | null): string {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
     month: "short",
@@ -222,7 +241,7 @@ export function SupportSessionsCard({ schoolId }: { schoolId: number }) {
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   </TableCell>
                   <TableCell className="whitespace-nowrap font-mono text-[12px] text-muted-foreground">
-                    {formatTime(row.started_at ?? row.created_at)}
+                    {formatSupportTime(row.started_at ?? row.created_at)}
                   </TableCell>
                   <TableCell className="text-right">
                     {canEnd(row) && (

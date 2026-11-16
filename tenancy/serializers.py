@@ -12,6 +12,7 @@ from tenancy.models import (
     PlatformAdmin,
     PlatformAuditLog,
     School,
+    SupportAccess,
     SupportSession,
     UsageSnapshot,
 )
@@ -201,6 +202,7 @@ class SchoolListSerializer(serializers.ModelSerializer):
             "first_admin_email",
             "first_admin_joined",
             "country",
+            "is_demo",
             "provisioning_error",
             "created_at",
             "usage",
@@ -235,6 +237,7 @@ class SchoolDetailSerializer(SchoolListSerializer):
     domains = serializers.SerializerMethodField()
     created_by = _AdminRefSerializer(read_only=True)
     first_admin = serializers.SerializerMethodField()
+    support_access = serializers.SerializerMethodField()
 
     class Meta(SchoolListSerializer.Meta):
         fields = SchoolListSerializer.Meta.fields + [
@@ -258,6 +261,7 @@ class SchoolDetailSerializer(SchoolListSerializer):
             "purged_at",
             "created_by",
             "first_admin",
+            "support_access",
         ]
 
     def get_domains(self, obj):
@@ -268,6 +272,22 @@ class SchoolDetailSerializer(SchoolListSerializer):
 
     def get_first_admin(self, obj):
         return self.context.get("first_admin")
+
+    def get_support_access(self, obj):
+        """The school's request for support still in force, or None."""
+        from django.utils import timezone
+
+        access = SupportAccess.open(obj, timezone.now()).first()
+        if access is None:
+            return None
+        return {
+            "id": access.pk,
+            "reason": access.reason,
+            "requested_by_name": access.requested_by_name,
+            "requested_by_email": access.requested_by_email,
+            "created_at": access.created_at,
+            "expires_at": access.expires_at,
+        }
 
 
 class CreateSchoolSerializer(serializers.Serializer):
@@ -290,6 +310,7 @@ class CreateSchoolSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True, required=False)
     plan_started_on = serializers.DateField(allow_null=True, required=False)
     renews_on = serializers.DateField(allow_null=True, required=False)
+    is_demo = serializers.BooleanField(required=False, default=False)
 
     def validate_slug(self, value):
         if not SLUG_RE.match(value):

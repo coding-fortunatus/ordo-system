@@ -41,6 +41,7 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { useConfirm } from "@/lib/confirm";
 import { PageHeader } from "@/components/layout/page-header";
+import { SupportAccessCard } from "./support-access";
 
 const schema = z.object({
   institution_name: z.string().trim().max(255).default(""),
@@ -469,6 +470,8 @@ export default function SettingsPage() {
           </Form>
         )}
       </Card>
+
+      <SupportAccessCard />
 
       <Card>
         <CardHeader>
